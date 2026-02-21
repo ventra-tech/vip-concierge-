@@ -1,0 +1,262 @@
+/**
+ * bookingLogic.js
+ * The deterministic brain of the booking system.
+ * Takes the current state + classified message and decides the next action.
+ *
+ * Returns one of:
+ *   ask_question    — need more info before deciding
+ *   approve_guestlist — eligible, collect names
+ *   push_table      — guestlist not available, offer table
+ *   confirm         — all info collected, send confirmation
+ *   handoff         — trigger Sanad alert
+ *   objection       — handle a pushback
+ *   rapport         — opening message, build connection first
+ */
+
+const {
+  evaluateGuestlistEligibility,
+  getTableMinimum,
+  checkHandoffRequired,
+} = require('./policy/reign');
+const { updateState } = require('./state');
+
+// ─── MISSING FIELD CHECKER ────────────────────────────────────────────────────
+
+/**
+ * Returns the next missing field to ask for, in priority order.
+ * Returns null if we have everything needed.
+ * @param {import('./state').ConversationState} state
+ * @returns {string|null}
+ */
+function getNextMissingField(state) {
+  if (state.lead_type === 'guestlist') {
+    if (state.gender_mix === 'unknown') return 'group_composition';
+    if (state.gender_mix !== 'girls' && state.guys === null) return 'guys_count';
+    if (state.girls === null) return 'girls_count';
+    if (state.night_type === null) return 'night_type';
+    if (state.collected_names.length === 0) return 'full_names';
+    if (state.collected_instagrams.length === 0) return 'instagram_handles';
+    return null;
+  }
+
+  if (state.lead_type === 'table') {
+    if (state.group_size === null) return 'group_size';
+    if (state.night_type === null) return 'night_type';
+    if (state.collected_names.length === 0) return 'full_name_for_table';
+    return null;
+  }
+
+  return 'lead_type';
+}
+
+// ─── STATE UPDATER FROM ROUTER OUTPUT ────────────────────────────────────────
+
+/**
+ * Merge router-extracted data into state.
+ * @param {import('./state').ConversationState} state
+ * @param {object} routerOutput
+ * @param {string} intent
+ * @returns {import('./state').ConversationState}
+ */
+function mergeRouterIntoState(state, routerOutput, intent) {
+  const updates = {
+    last_user_message_type: routerOutput.messageType,
+    last_intent: intent,
+  };
+
+  // Update lead type if newly determined
+  if (intent === 'guestlist' && state.lead_type === 'unknown') updates.lead_type = 'guestlist';
+  if (intent === 'table' && state.lead_type === 'unknown') updates.lead_type = 'table';
+
+  // Update group numbers if extracted
+  if (routerOutput.groupSize !== null) updates.group_size = routerOutput.groupSize;
+  if (routerOutput.guys !== null) {
+    updates.guys = routerOutput.guys;
+    if (routerOutput.guys === 0) {
+      updates.gender_mix = 'girls';
+    } else if (routerOutput.girls > 0) {
+      updates.gender_mix = 'mixed';
+    } else {
+      updates.gender_mix = 'guys';
+    }
+  }
+  if (routerOutput.girls !== null) {
+    updates.girls = routerOutput.girls;
+    if (routerOutput.guys === 0 || state.guys === 0) {
+      updates.gender_mix = 'girls';
+    }
+  }
+  if (routerOutput.nightType !== null) updates.night_type = routerOutput.nightType;
+
+  return updateState(state, updates);
+}
+
+// ─── MAIN DECISION ENGINE ─────────────────────────────────────────────────────
+
+/**
+ * Given the current state and router classification, decide the next action.
+ *
+ * @param {import('./state').ConversationState} state
+ * @param {object} routerOutput - Output from classifyMessage()
+ * @returns {{
+ *   action: string,
+ *   updatedState: import('./state').ConversationState,
+ *   missingField: string|null,
+ *   tableMinimum: object|null,
+ *   eligibilityResult: object|null
+ * }}
+ */
+function decideNextAction(state, routerOutput) {
+  const intent = routerOutput.intent;
+
+  // ── Step 1: Always check if handoff is needed first ──
+  const handoffCheck = checkHandoffRequired({
+    messageType: routerOutput.messageType,
+    messageText: routerOutput.rawText,
+    state,
+  });
+
+  if (handoffCheck.required) {
+    const updatedState = updateState(state, {
+      status: 'handoff',
+      handoff_reason: handoffCheck.reason,
+      paused: true,
+      last_user_message_type: routerOutput.messageType,
+    });
+    return {
+      action: 'handoff',
+      updatedState,
+      missingField: null,
+      tableMinimum: null,
+      eligibilityResult: null,
+    };
+  }
+
+  // ── Step 2: Merge router data into state ──
+  let updatedState = mergeRouterIntoState(state, routerOutput, intent);
+
+  // ── Step 3: Handle objections ──
+  if (intent === 'objection') {
+    return {
+      action: 'objection',
+      updatedState,
+      missingField: null,
+      tableMinimum: null,
+      eligibilityResult: null,
+    };
+  }
+
+  // ── Step 4: Handle birthday signal ──
+  if (intent === 'birthday') {
+    return {
+      action: 'birthday_acknowledgement',
+      updatedState,
+      missingField: null,
+      tableMinimum: null,
+      eligibilityResult: null,
+    };
+  }
+
+  // ── Step 5: First message / unknown — build rapport ──
+  if (intent === 'unknown' && updatedState.turn_count <= 1) {
+    return {
+      action: 'rapport',
+      updatedState,
+      missingField: null,
+      tableMinimum: null,
+      eligibilityResult: null,
+    };
+  }
+
+  // ── Step 6: Route by lead type ──
+
+  if (updatedState.lead_type === 'guestlist') {
+    return _handleGuestlistFlow(updatedState);
+  }
+
+  if (updatedState.lead_type === 'table') {
+    return _handleTableFlow(updatedState);
+  }
+
+  // ── Step 7: Still don't know lead type — ask ──
+  return {
+    action: 'ask_question',
+    updatedState,
+    missingField: 'lead_type',
+    tableMinimum: null,
+    eligibilityResult: null,
+  };
+}
+
+// ─── GUESTLIST FLOW ───────────────────────────────────────────────────────────
+
+function _handleGuestlistFlow(state) {
+  // Girls only — simplified flow
+  if (state.gender_mix === 'girls') {
+    const missingField = getNextMissingField(state);
+    if (missingField) {
+      return { action: 'ask_question', updatedState: state, missingField, tableMinimum: null, eligibilityResult: null };
+    }
+    // All info collected — confirm
+    const confirmed = updateState(state, { status: 'confirmed' });
+    return { action: 'confirm', updatedState: confirmed, missingField: null, tableMinimum: null, eligibilityResult: { decision: 'approved', reason: 'girls_only' } };
+  }
+
+  // Need to know guys count first
+  if (state.guys === null) {
+    return { action: 'ask_question', updatedState: state, missingField: 'group_composition', tableMinimum: null, eligibilityResult: null };
+  }
+
+  // Evaluate eligibility
+  const eligibilityResult = evaluateGuestlistEligibility({
+    guys: state.guys || 0,
+    girls: state.girls || 0,
+    nightType: state.night_type,
+  });
+
+  if (eligibilityResult.decision === 'push_table') {
+    const tableMin = getTableMinimum(state.group_size || state.guys, state.night_type);
+    const updated = updateState(state, { lead_type: 'table' });
+    return { action: 'push_table', updatedState: updated, missingField: null, tableMinimum: tableMin, eligibilityResult };
+  }
+
+  if (eligibilityResult.decision === 'handoff') {
+    const updated = updateState(state, { status: 'handoff', handoff_reason: eligibilityResult.reason, paused: true });
+    return { action: 'handoff', updatedState: updated, missingField: null, tableMinimum: null, eligibilityResult };
+  }
+
+  // Approved — collect remaining details
+  const missingField = getNextMissingField(state);
+  if (missingField) {
+    return { action: 'ask_question', updatedState: state, missingField, tableMinimum: null, eligibilityResult };
+  }
+
+  const confirmed = updateState(state, { status: 'confirmed' });
+  return { action: 'confirm', updatedState: confirmed, missingField: null, tableMinimum: null, eligibilityResult };
+}
+
+// ─── TABLE FLOW ───────────────────────────────────────────────────────────────
+
+function _handleTableFlow(state) {
+  const missingField = getNextMissingField(state);
+
+  if (state.group_size !== null) {
+    // Large group — handoff
+    if (state.group_size >= 5) {
+      const updated = updateState(state, { status: 'handoff', handoff_reason: 'large_table_group', paused: true });
+      return { action: 'handoff', updatedState: updated, missingField: null, tableMinimum: null, eligibilityResult: null };
+    }
+    const tableMin = getTableMinimum(state.group_size, state.night_type);
+
+    if (missingField) {
+      return { action: 'ask_question', updatedState: state, missingField, tableMinimum: tableMin, eligibilityResult: null };
+    }
+
+    const confirmed = updateState(state, { status: 'confirmed' });
+    return { action: 'confirm', updatedState: confirmed, missingField: null, tableMinimum: tableMin, eligibilityResult: null };
+  }
+
+  return { action: 'ask_question', updatedState: state, missingField: 'group_size', tableMinimum: null, eligibilityResult: null };
+}
+
+module.exports = { decideNextAction, getNextMissingField, mergeRouterIntoState };
