@@ -40,11 +40,15 @@ function parseIncomingPayload(body) {
       : message?.text || message?.last_input_text || '';
 
   // Detect message type
-  // ManyChat transcribes voice notes to text — we use a special keyword __voice_note__
-  // set in ManyChat's voice trigger flow to detect them
   let messageType = body.message_type || body.type || message?.type || 'text';
   if (messageType === 'audio') messageType = 'voice';
   if (messageText === '__voice_note__') messageType = 'voice';
+
+  // Best-effort voice note heuristic detection
+  // ManyChat transcribes voice notes — we look for patterns almost never typed
+  if (messageType === 'text' && messageText) {
+    messageType = _guessIfVoiceNote(messageText) ? 'voice' : messageType;
+  }
 
   const firstName =
     body.first_name || subscriber?.first_name || '';
@@ -160,6 +164,40 @@ function formatWebhookResponse(replyText) {
       ],
     },
   };
+}
+
+// ─── VOICE NOTE HEURISTIC ─────────────────────────────────────────────────────
+
+/**
+ * Best-effort guess at whether a transcribed message was a voice note.
+ * Uses patterns that are almost never typed but common in voice transcriptions.
+ * Will have some false positives — acceptable tradeoff.
+ *
+ * @param {string} text
+ * @returns {boolean}
+ */
+function _guessIfVoiceNote(text) {
+  const lower = text.trim().toLowerCase();
+  const words = lower.split(/\s+/);
+
+  // Rule 1: Contains filler sounds with 3+ repeated letters
+  // e.g. "urrrm", "errr", "ummmm", "hmmm", "ahhhh"
+  if (/\b(u+r+m+|e+r+r+|u+m+|h+m+|a+h+|e+h+|o+h+)\b/.test(lower) && words.length <= 4) {
+    return true;
+  }
+
+  // Rule 2: Single word that is pure filler sound (3+ chars of repeated pattern)
+  if (words.length === 1 && /^([a-z])\1{2,}$/.test(lower)) {
+    return true;
+  }
+
+  // Rule 3: Very short message containing ONLY filler words
+  const FILLER_ONLY = ['um', 'uh', 'er', 'hmm', 'hm', 'ah', 'oh', 'erm'];
+  if (words.length <= 2 && words.every(w => FILLER_ONLY.includes(w))) {
+    return true;
+  }
+
+  return false;
 }
 
 module.exports = {
