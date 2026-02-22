@@ -30,9 +30,13 @@ app.post('/message', async (req, res) => {
   try {
     const body = req.body;
 
-    // Basic validation — must have a subscriber ID
-    const subscriberId = body.subscriber_id || body.id;
+    // Log incoming payload for debugging
+    console.log('[server] /message received:', JSON.stringify(body));
+
+    // Basic validation — support all ManyChat field names
+    const subscriberId = body.contactId || body.subscriber_id || body.id;
     if (!subscriberId) {
+      console.error('[server] Missing subscriber ID. Body:', JSON.stringify(body));
       return res.status(400).json({ error: 'Missing subscriber_id in payload' });
     }
 
