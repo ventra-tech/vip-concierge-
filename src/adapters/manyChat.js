@@ -39,8 +39,13 @@ function parseIncomingPayload(body) {
       ? message
       : message?.text || message?.last_input_text || '';
 
-  const messageType =
-    body.message_type || body.type || message?.type || 'text';
+  // Detect message type — ManyChat sometimes sends empty userinput for voice/media
+  // Check explicit type fields first, then infer from empty text
+  let messageType = body.message_type || body.type || message?.type || 'text';
+  if (messageType === 'text' && !messageText && body.attachments) messageType = 'image';
+  if (messageType === 'text' && !messageText && body.audio) messageType = 'voice';
+  // ManyChat sends "voice" or "audio" in message_type for voice notes
+  if (messageType === 'audio') messageType = 'voice';
 
   const firstName =
     body.first_name || subscriber?.first_name || '';

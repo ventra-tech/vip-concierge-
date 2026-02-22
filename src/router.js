@@ -126,16 +126,27 @@ function extractNumbers(text) {
     girls = 0;
   }
 
-  // Pattern: "group of X" / "party of X" / "X of us" / "just X of us" / "X of us girls" / "X of us all girls"
-  const groupMatch = lower.match(/(?:group|party|table)\s+of\s+(\d+)|(\d+)\s+of\s+us|just\s+(\d+)|there(?:'s|\s+are)\s+(\d+)\s+of\s+us/);
+  // Pattern: "group of X" / "party of X" / "X of us" / "just X of us"
+  // "there's X of us" / "there are X of us" / "theres X of us"
+  // "we are X" / "we're X" / "its X of us" / "it's X of us"
+  const groupMatch = lower.match(
+    /(?:group|party|table)\s+of\s+(\d+)|(\d+)\s+of\s+us|just\s+(\d+)\s+of\s+us|there(?:'s|s|\s+are)\s+(\d+)\s+of\s+us|we(?:'re|\s+are)\s+(\d+)|it(?:'s|\s+is)\s+(\d+)\s+of\s+us|coming\s+(\d+)|(\d+)\s+coming|(\d+)\s+of\s+us/
+  );
   if (groupMatch) {
-    groupSize = parseInt(groupMatch[1] || groupMatch[2] || groupMatch[3] || groupMatch[4], 10);
+    const val = groupMatch[1] || groupMatch[2] || groupMatch[3] || groupMatch[4] || groupMatch[5] || groupMatch[6] || groupMatch[7] || groupMatch[8] || groupMatch[9] || groupMatch[10];
+    if (val) groupSize = parseInt(val, 10);
   }
 
   // Pattern: "3 of us" at start of message e.g. "3 of us, all girls"
   const usMatch = lower.match(/^(\d+)\s+of\s+us/);
   if (usMatch && !groupSize) {
     groupSize = parseInt(usMatch[1], 10);
+  }
+
+  // Pattern: standalone number when context is clear e.g. "4" / "just 4" / "4 of us"
+  if (!groupSize) {
+    const standaloneMatch = lower.match(/^(?:just\s+)?(\d+)(?:\s+of\s+us)?$/);
+    if (standaloneMatch) groupSize = parseInt(standaloneMatch[1], 10);
   }
 
   // Pattern: solo — "just me", "it's just me", "solo"
