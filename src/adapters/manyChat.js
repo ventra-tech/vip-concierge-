@@ -25,12 +25,15 @@ const config = require('../config');
  */
 function parseIncomingPayload(body) {
   // Support both flat and nested ManyChat payload formats
+  // Also handles ManyChat's actual field names: contactId, userinput
   const subscriber = body.subscriber || body.contact || body;
-  const message = body.message || body.last_input_text || body.text || '';
 
+  // ManyChat sends contactId as the subscriber ID
   const subscriberId =
-    String(body.subscriber_id || body.id || subscriber?.id || 'unknown');
+    String(body.contactId || body.subscriber_id || body.id || subscriber?.id || 'unknown');
 
+  // ManyChat sends the message text as userinput
+  const message = body.userinput || body.message || body.last_input_text || body.text || '';
   const messageText =
     typeof message === 'string'
       ? message
