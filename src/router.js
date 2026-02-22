@@ -103,9 +103,18 @@ function extractNumbers(text) {
   const guysMatch = lower.match(/(\d+)\s*(guy|guys|lad|lads|man|men|male|males|bro|bros)/);
   if (guysMatch) guys = parseInt(guysMatch[1], 10);
 
-  // Pattern: "X girls" / "X females" / "X women"
-  const girlsMatch = lower.match(/(\d+)\s*(girl|girls|female|females|woman|women|lady|ladies)/);
+  // Pattern: "X girls" / "X females" / "X women" / "X of my girls" / "X of us girls"
+  const girlsMatch = lower.match(/(\d+)\s*(?:of\s+(?:my|us|the)\s+)?(girl|girls|female|females|woman|women|lady|ladies)/);
   if (girlsMatch) girls = parseInt(girlsMatch[1], 10);
+
+  // Pattern: "X of my girls" / "X of my mates" at start or anywhere
+  const ofMyMatch = lower.match(/(\d+)\s+of\s+my\s+(girl|girls|mate|mates|friend|friends|lad|lads|guy|guys)/);
+  if (ofMyMatch && girls === null && guys === null) {
+    const word = ofMyMatch[2];
+    const num = parseInt(ofMyMatch[1], 10);
+    if (['girl', 'girls', 'friend', 'friends'].includes(word)) girls = num;
+    if (['mate', 'mates', 'lad', 'lads', 'guy', 'guys'].includes(word)) guys = num;
+  }
 
   // Pattern: "all girls" / "just girls" / "only girls" — no guys
   if (!guys && /\b(all|just|only|we're all|were all)\s+girls\b/.test(lower)) {
