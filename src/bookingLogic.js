@@ -70,6 +70,7 @@ function mergeRouterIntoState(state, routerOutput, intent) {
 
   // Update group numbers if extracted
   if (routerOutput.groupSize !== null) updates.group_size = routerOutput.groupSize;
+
   if (routerOutput.guys !== null) {
     updates.guys = routerOutput.guys;
     if (routerOutput.guys === 0) {
@@ -80,13 +81,41 @@ function mergeRouterIntoState(state, routerOutput, intent) {
       updates.gender_mix = 'guys';
     }
   }
+
   if (routerOutput.girls !== null) {
     updates.girls = routerOutput.girls;
+    // If girls mentioned and no guys info anywhere → assume all girls
     if (routerOutput.guys === 0 || state.guys === 0) {
+      updates.gender_mix = 'girls';
+    } else if (routerOutput.guys === null && state.guys === null) {
+      // Girls mentioned but no guys info — treat as girls only
+      updates.guys = 0;
       updates.gender_mix = 'girls';
     }
   }
+
   if (routerOutput.nightType !== null) updates.night_type = routerOutput.nightType;
+
+  // ── Post-processing: reconcile state ──
+  const mergedGuys = updates.guys ?? state.guys;
+  const mergedGirls = updates.girls ?? state.girls;
+  const mergedGroupSize = updates.group_size ?? state.group_size;
+
+  // If guys=0 and girls still null but group_size exists → girls = group_size
+  if (mergedGuys === 0 && mergedGirls === null && mergedGroupSize !== null) {
+    updates.girls = mergedGroupSize;
+    updates.gender_mix = 'girls';
+  }
+
+  // If girls > 0 and guys=0 → confirm gender_mix = girls
+  if (mergedGirls > 0 && mergedGuys === 0) {
+    updates.gender_mix = 'girls';
+  }
+
+  // If we have both guys and girls, derive group_size if missing
+  if (mergedGuys !== null && mergedGirls !== null && mergedGroupSize === null) {
+    updates.group_size = mergedGuys + mergedGirls;
+  }
 
   return updateState(state, updates);
 }
