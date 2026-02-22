@@ -39,13 +39,12 @@ function parseIncomingPayload(body) {
       ? message
       : message?.text || message?.last_input_text || '';
 
-  // Detect message type — ManyChat sometimes sends empty userinput for voice/media
-  // Check explicit type fields first, then infer from empty text
+  // Detect message type
+  // ManyChat transcribes voice notes to text — we use a special keyword __voice_note__
+  // set in ManyChat's voice trigger flow to detect them
   let messageType = body.message_type || body.type || message?.type || 'text';
-  if (messageType === 'text' && !messageText && body.attachments) messageType = 'image';
-  if (messageType === 'text' && !messageText && body.audio) messageType = 'voice';
-  // ManyChat sends "voice" or "audio" in message_type for voice notes
   if (messageType === 'audio') messageType = 'voice';
+  if (messageText === '__voice_note__') messageType = 'voice';
 
   const firstName =
     body.first_name || subscriber?.first_name || '';
