@@ -160,6 +160,12 @@ async function composeReply({
   // ── Deterministic templates first ──
 
   switch (action) {
+    case 'answer_question': {
+      const faqReply = _answerVenueQuestion(rawUserMessage, gender);
+      if (faqReply) return faqReply;
+      break; // Fall through to LLM for unknown questions
+    }
+
     case 'confirm':
       if (state.lead_type === 'guestlist') return guestlistConfirmation(state);
       if (state.lead_type === 'table') return tableConfirmation(state, tableMinimum);
@@ -197,6 +203,52 @@ async function composeReply({
 
   // ── LLM fallback for unhandled cases ──
   return _llmCompose({ action, state, missingField, tableMinimum, rawUserMessage });
+}
+
+// ─── VENUE FAQ ANSWERS ────────────────────────────────────────────────────────
+
+function _answerVenueQuestion(rawUserMessage, gender) {
+  const lower = rawUserMessage.toLowerCase();
+  const isMale = gender === 'male';
+
+  if (lower.includes('dress code') || lower.includes('wear') || lower.includes('outfit') || lower.includes('attire')) {
+    return `Dress code is dress & heels — elegant wear only 👀 No flats, trainers, or sportswear. Keep it classy 🥂`;
+  }
+
+  if (lower.includes('entry') || lower.includes('how much') || lower.includes('price') || lower.includes('cost') || lower.includes('free')) {
+    return `Entry is £20 on the door. Once you're inside you're good — I've got you 🕺🥂`;
+  }
+
+  if (lower.includes('time') || lower.includes('when') || lower.includes('arrive') || lower.includes('arrival')) {
+    return `Get there by 11pm — ideal is 11:00–11:30pm 👀 Don't leave it too late`;
+  }
+
+  if (lower.includes('address') || lower.includes('where') || lower.includes('location')) {
+    return `215–217 Piccadilly, St. James's, London 📲 Right in the heart of Mayfair`;
+  }
+
+  if (lower.includes('id') || lower.includes('identification') || lower.includes('passport')) {
+    return `Physical ID is mandatory 👀 Picture of your passport on your phone works too. Don't forget it`;
+  }
+
+  if (lower.includes('age') || lower.includes('how old') || lower.includes('18')) {
+    return isMale
+      ? `18+ strictly bro 👀 And bring valid ID or you won't get in`
+      : `18+ strictly darling 👀 Bring valid ID — they're strict on the door`;
+  }
+
+  if (lower.includes('tonight') || lower.includes('good tonight') || lower.includes('worth')) {
+    return isMale
+      ? `Yes ofc bro 😏 Tonight's perfect. How many of you and what vibe you going for? 🥂`
+      : `Yes ofc 😏 Tonight's perfect darling. How many of you? 🥂`;
+  }
+
+  if (lower.includes('parking') || lower.includes('uber') || lower.includes('transport') || lower.includes('tube')) {
+    return `Nearest tube is Piccadilly Circus 📲 Uber drops right outside`;
+  }
+
+  // Generic question — let LLM handle it
+  return null;
 }
 
 async function _llmCompose({ action, state, missingField, tableMinimum, rawUserMessage }) {

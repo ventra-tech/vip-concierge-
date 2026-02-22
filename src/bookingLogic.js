@@ -135,7 +135,18 @@ function decideNextAction(state, routerOutput) {
   // ── Step 2: Merge router data into state ──
   let updatedState = mergeRouterIntoState(state, routerOutput, intent);
 
-  // ── Step 3: Handle objections ──
+  // ── Step 3: Handle venue FAQ questions — always answer regardless of lead type ──
+  if (intent === 'question') {
+    return {
+      action: 'answer_question',
+      updatedState,
+      missingField: null,
+      tableMinimum: null,
+      eligibilityResult: null,
+    };
+  }
+
+  // ── Step 4: Handle objections ──
   if (intent === 'objection') {
     return {
       action: 'objection',
@@ -146,7 +157,7 @@ function decideNextAction(state, routerOutput) {
     };
   }
 
-  // ── Step 4: Handle birthday signal ──
+  // ── Step 5: Handle birthday signal ──
   if (intent === 'birthday') {
     return {
       action: 'birthday_acknowledgement',
@@ -157,7 +168,7 @@ function decideNextAction(state, routerOutput) {
     };
   }
 
-  // ── Step 5: First message / unknown — build rapport ──
+  // ── Step 6: First message / unknown — build rapport ──
   if (intent === 'unknown' && updatedState.turn_count <= 1) {
     return {
       action: 'rapport',
