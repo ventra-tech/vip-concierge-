@@ -11,6 +11,7 @@
 require('dotenv').config();
 const express = require('express');
 const { processMessage, resumeFromHandoff } = require('./src/index');
+const { sendTextMessage } = require('./src/adapters/manyChat');
 const config = require('./src/config');
 
 const app = express();
@@ -79,6 +80,16 @@ app.get('/resume', async (req, res) => {
     }
 
     const result = await resumeFromHandoff({ subscriberId, decision });
+
+    // Actually send the reply to the customer on Instagram via ManyChat
+    if (result.reply_text) {
+      try {
+        await sendTextMessage(subscriberId, result.reply_text);
+        console.log(`[server] /resume sent message to ${subscriberId}: ${result.reply_text}`);
+      } catch (sendErr) {
+        console.error(`[server] /resume failed to send ManyChat message:`, sendErr.message);
+      }
+    }
 
     const decisionLabels = {
       approve_guestlist: '✅ Guestlist Approved',

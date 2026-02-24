@@ -58,7 +58,11 @@ async function processMessage(manyChatBody) {
     firstName,
     existingGender: state.detected_gender,
   });
-  state = updateState(state, { detected_gender: detectedGender });
+  state = updateState(state, {
+    detected_gender: detectedGender,
+    username: username || state.username || null,
+    first_name: firstName || state.first_name || null,
+  });
   state = { ...state, turn_count: state.turn_count - 1 };
 
   // ── 5. If session is paused (handoff active) — send holding message ──

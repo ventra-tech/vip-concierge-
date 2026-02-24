@@ -18,9 +18,15 @@ const { resumeSession } = require('./sessionStore');
 function buildHandoffAlert(state) {
   const baseUrl = 'https://vip-concierge-production.up.railway.app';
   const sid = state.subscriberId;
+  const displayName = state.username
+    ? `@${state.username}`
+    : state.first_name || `ID: ${sid}`;
 
-  // Build conversation history HTML
-  const historyHtml = (state.conversation_history || []).map(msg => {
+  // Build conversation history HTML — full thread, scrollable in email
+  const allHistory = state.conversation_history || [];
+  const totalMessages = allHistory.length;
+
+  const historyHtml = allHistory.map(msg => {
     const isBot = msg.role === 'assistant';
     const bg = isBot ? '#f0f0f0' : '#DCF8C6';
     const align = isBot ? 'left' : 'right';
@@ -46,20 +52,49 @@ function buildHandoffAlert(state) {
     summaryLines.push(`• Names: ${state.collected_names.join(', ')}`);
   }
 
+  // Estimated value label
+  const estValue = state.estimated_value
+    ? `£${state.estimated_value.toLocaleString()}`
+    : state.lead_type === 'table' ? 'TBC' : 'Free (guestlist)';
+
   // Build email HTML with all buttons + conversation history
   const emailHtml = `
 <div style="font-family:Arial,sans-serif;max-width:600px;">
-  <h2 style="color:#FF4444;">🚨 HANDOFF REQUIRED</h2>
-  <p><strong>Reason:</strong> ${formatHandoffReason(state.handoff_reason)}</p>
-  <hr>
-  <h3>Lead Summary</h3>
-  <p>• <strong>Type:</strong> ${state.lead_type}</p>
-  <p>• <strong>Group:</strong> ${_describeGroup(state)}</p>
-  <p>• <strong>Night:</strong> ${state.night_type || 'not specified'}</p>
-  <p>• <strong>Subscriber ID:</strong> ${sid}</p>
-  ${state.collected_names.length > 0 ? `<p>• <strong>Names:</strong> ${state.collected_names.join(', ')}</p>` : ''}
-  <hr>
-  <h3>Conversation History</h3>
+  <h2 style="color:#FF4444;">🚨 HANDOFF REQUIRED — ${displayName}</h2>
+
+  <!-- Quick Summary Card -->
+  <div style="background:#fff8e1;border-left:4px solid #FF9500;padding:14px 18px;border-radius:6px;margin:12px 0;">
+    <table style="width:100%;border-collapse:collapse;font-size:14px;">
+      <tr>
+        <td style="padding:4px 8px;color:#555;">👤 Customer</td>
+        <td style="padding:4px 8px;font-weight:bold;">${displayName}</td>
+        <td style="padding:4px 8px;color:#555;">📋 Lead Type</td>
+        <td style="padding:4px 8px;font-weight:bold;text-transform:capitalize;">${state.lead_type || 'unknown'}</td>
+      </tr>
+      <tr>
+        <td style="padding:4px 8px;color:#555;">👥 Group</td>
+        <td style="padding:4px 8px;font-weight:bold;">${_describeGroup(state)}</td>
+        <td style="padding:4px 8px;color:#555;">🌙 Night</td>
+        <td style="padding:4px 8px;font-weight:bold;text-transform:capitalize;">${state.night_type || 'not specified'}</td>
+      </tr>
+      <tr>
+        <td style="padding:4px 8px;color:#555;">💰 Est. Value</td>
+        <td style="padding:4px 8px;font-weight:bold;color:#25D366;">${estValue}</td>
+        <td style="padding:4px 8px;color:#555;">💬 Turns</td>
+        <td style="padding:4px 8px;font-weight:bold;">${state.turn_count} messages</td>
+      </tr>
+      <tr>
+        <td style="padding:4px 8px;color:#555;">🚨 Reason</td>
+        <td colspan="3" style="padding:4px 8px;font-weight:bold;color:#FF4444;">${formatHandoffReason(state.handoff_reason)}</td>
+      </tr>
+      ${state.collected_names.length > 0 ? `
+      <tr>
+        <td style="padding:4px 8px;color:#555;">📝 Names</td>
+        <td colspan="3" style="padding:4px 8px;font-weight:bold;">${state.collected_names.join(', ')}</td>
+      </tr>` : ''}
+    </table>
+  </div>
+  <h3>Conversation History ${totalMessages > 0 ? `<span style="font-weight:normal;font-size:13px;color:#888;">(${totalMessages} messages)</span>` : ''}</h3>
   <div style="border:1px solid #ddd;padding:10px;border-radius:8px;max-height:300px;overflow-y:auto;">
     ${historyHtml || '<p style="color:#888;">No history recorded yet</p>'}
   </div>
