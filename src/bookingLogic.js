@@ -99,6 +99,20 @@ function mergeRouterIntoState(state, routerOutput, intent) {
 
   if (routerOutput.nightType !== null) updates.night_type = routerOutput.nightType;
 
+  // Collect names — append new ones, avoid duplicates
+  if (routerOutput.names && routerOutput.names.length > 0) {
+    const existing = state.collected_names || [];
+    const merged = [...new Set([...existing, ...routerOutput.names])];
+    updates.collected_names = merged;
+  }
+
+  // Collect Instagram handles — append new ones, avoid duplicates
+  if (routerOutput.instagrams && routerOutput.instagrams.length > 0) {
+    const existing = state.collected_instagrams || [];
+    const merged = [...new Set([...existing, ...routerOutput.instagrams])];
+    updates.collected_instagrams = merged;
+  }
+
   // ── Post-processing: reconcile state ──
   const mergedGuys = updates.guys ?? state.guys;
   const mergedGirls = updates.girls ?? state.girls;

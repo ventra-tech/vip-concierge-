@@ -17,6 +17,8 @@ const FEMALE_LANGUAGE = [
   'babe', 'babes', 'girlie', 'girlies', 'hun', 'hiya', 'heyy', 'heyyy',
   'omg', 'yasss', 'yass', 'slay', 'iconic', 'queen', 'queens', 'girls',
   'we\'re girls', 'just girls', 'hen', 'hen do', 'birthday girl',
+  'girlfriends', 'girl friends', 'my girls', 'the girls', 'all girls',
+  'its girls', 'it\'s girls', 'yes girls', 'we are girls',
 ];
 
 const MALE_LANGUAGE = [
@@ -94,15 +96,18 @@ function scoreText(text = '', username = '') {
  * @returns {'male'|'female'|'neutral'}
  */
 function detectGender({ messageText = '', username = '', firstName = '', existingGender = null }) {
-  // If we already made a confident detection, keep it
+  const { femaleScore, maleScore } = scoreText(messageText, username);
+  const gap = Math.abs(femaleScore - maleScore);
+  const newDetection = gap < 2 ? 'neutral' : (femaleScore > maleScore ? 'female' : 'male');
+
+  // If we have an existing confident detection, keep it UNLESS new message
+  // contradicts it very strongly (gap >= 4) — e.g. user explicitly says "all girls"
   if (existingGender && existingGender !== 'neutral') {
+    if (newDetection !== 'neutral' && newDetection !== existingGender && gap >= 4) {
+      return newDetection; // Strong override — e.g. "all girls" overrides previous 'male'
+    }
     return existingGender;
   }
-
-  const { femaleScore, maleScore } = scoreText(messageText, username);
-
-  // Need a score gap of at least 2 to make a call, else stay neutral
-  const gap = Math.abs(femaleScore - maleScore);
 
   if (gap < 2) return 'neutral';
   if (femaleScore > maleScore) return 'female';

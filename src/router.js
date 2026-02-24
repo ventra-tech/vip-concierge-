@@ -168,6 +168,48 @@ function extractNumbers(text) {
   return { groupSize, guys, girls };
 }
 
+// ─── NAME AND INSTAGRAM EXTRACTION ───────────────────────────────────────────
+
+/**
+ * Extract full names and Instagram handles from a message.
+ * Called when the bot is expecting names/handles from the customer.
+ * @param {string} text
+ * @returns {{ names: string[], instagrams: string[] }}
+ */
+function extractNamesAndInstagram(text) {
+  const names = [];
+  const instagrams = [];
+
+  // Extract Instagram handles — @username (letters, numbers, dots, underscores)
+  const igMatches = text.match(/@[\w.]+/g);
+  if (igMatches) {
+    igMatches.forEach(handle => instagrams.push(handle.toLowerCase()));
+  }
+
+  // Pattern: "my name is X Y" / "name's X Y" / "I'm X Y" / "it's X Y"
+  const namedMatch = text.match(
+    /(?:my name(?:'s| is)|name is|i'm|im|it's|its|i am)\s+([A-Za-z]+(?:\s+[A-Za-z]+){0,2})/i
+  );
+  if (namedMatch) {
+    const cleaned = namedMatch[1].trim();
+    if (cleaned.length > 1) names.push(cleaned);
+  }
+
+  // Pattern: "Full Name @handle" — name then instagram on same line
+  if (names.length === 0) {
+    const nameHandleMatch = text.match(/^([A-Za-z]+(?:\s+[A-Za-z]+){1,2})\s+@/i);
+    if (nameHandleMatch) names.push(nameHandleMatch[1].trim());
+  }
+
+  // Pattern: bare "FirstName LastName" with no other context (2-3 capitalised words)
+  if (names.length === 0 && instagrams.length === 0) {
+    const bareNameMatch = text.match(/^([A-Z][a-z]+(?:\s+[A-Z][a-z]+){1,2})$/);
+    if (bareNameMatch) names.push(bareNameMatch[1].trim());
+  }
+
+  return { names, instagrams };
+}
+
 // ─── DATE / NIGHT EXTRACTION ──────────────────────────────────────────────────
 
 /**
@@ -275,9 +317,10 @@ async function classifyMessage(manyChatPayload, messageText) {
   // Step 2: LLM fallback only if keywords failed
   const intent = keywordIntent || (await llmClassifyIntent(text));
 
-  // Step 3: extract numbers and date signals
+  // Step 3: extract numbers, date signals, names and Instagram handles
   const { groupSize, guys, girls } = extractNumbers(text);
   const nightType = extractNightType(text);
+  const { names, instagrams } = extractNamesAndInstagram(text);
 
   return {
     intent,
@@ -286,6 +329,8 @@ async function classifyMessage(manyChatPayload, messageText) {
     guys,
     girls,
     nightType,
+    names,
+    instagrams,
     rawText: text,
     classifiedBy,
   };

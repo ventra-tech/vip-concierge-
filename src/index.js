@@ -158,10 +158,23 @@ async function resumeFromHandoff(resumeBody) {
     return { reply_text: null, updated_state: resumedState };
   }
 
+  // For resume_ai, don't restart with rapport — pick up from where conversation was
+  let resolvedAction = nextAction;
+  let resolvedMissingField = null;
+  if (decision === 'resume_ai') {
+    const { getNextMissingField } = require('./bookingLogic');
+    resolvedMissingField = getNextMissingField(resumedState);
+    if (resolvedMissingField) {
+      resolvedAction = 'ask_question';
+    } else if (resumedState.lead_type !== 'unknown') {
+      resolvedAction = 'rapport'; // All info collected, just re-engage warmly
+    }
+  }
+
   const replyText = await composeReply({
-    action: nextAction,
+    action: resolvedAction,
     state: resumedState,
-    missingField: null,
+    missingField: resolvedMissingField,
     tableMinimum: null,
     eligibilityResult: null,
     rawUserMessage: '',
