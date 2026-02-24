@@ -178,10 +178,25 @@ function extractNumbers(text) {
 function extractNightType(text) {
   const days = ['monday', 'tuesday', 'wednesday', 'thursday', 'friday', 'saturday', 'sunday'];
   const lower = text.toLowerCase();
+
+  // Specific day names
   for (const day of days) {
     if (lower.includes(day)) return detectNightType(day);
   }
+
+  // Tonight / today — use actual current day
   if (lower.includes('tonight') || lower.includes('today')) return detectNightType('tonight');
+
+  // Explicit weekend signals
+  if (/\b(weekend|this weekend|next weekend|sat night|saturday night|friday night)\b/.test(lower)) {
+    return 'weekend';
+  }
+
+  // Vague "any night" / "fun night" / "next week" — caller should treat as weekend (safer pricing)
+  if (/\b(any night|fun night|a night|some night|next week|this week|soon|coming up)\b/.test(lower)) {
+    return 'weekend';
+  }
+
   return null;
 }
 

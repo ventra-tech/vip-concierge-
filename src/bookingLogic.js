@@ -64,9 +64,12 @@ function mergeRouterIntoState(state, routerOutput, intent) {
     last_intent: intent,
   };
 
-  // Update lead type if newly determined
+  // Update lead type if newly determined — also allow switching from guestlist to table
+  // (user may start asking about guestlist then realise they want a table)
   if (intent === 'guestlist' && state.lead_type === 'unknown') updates.lead_type = 'guestlist';
-  if (intent === 'table' && state.lead_type === 'unknown') updates.lead_type = 'table';
+  if (intent === 'table' && (state.lead_type === 'unknown' || state.lead_type === 'guestlist')) {
+    updates.lead_type = 'table';
+  }
 
   // Update group numbers if extracted
   if (routerOutput.groupSize !== null) updates.group_size = routerOutput.groupSize;
@@ -228,14 +231,34 @@ function decideNextAction(state, routerOutput) {
   };
 }
 
+// ─── NIGHT TYPE ANTI-LOOP ─────────────────────────────────────────────────────
+// If we've asked for night_type twice and still have no answer, default to weekend.
+// Stops the bot repeating the same question forever when user isn't giving a specific day.
+
+function _resolveNightType(state) {
+  if (state.night_type !== null) return state; // already known
+  if ((state.night_type_asks || 0) >= 2) {
+    // Give up asking — default to weekend (higher minimum, safer for pricing)
+    return updateState(state, { night_type: 'weekend', night_type_asks: (state.night_type_asks || 0) + 1 });
+  }
+  return null; // still need to ask
+}
+
 // ─── GUESTLIST FLOW ───────────────────────────────────────────────────────────
 
 function _handleGuestlistFlow(state) {
   // Girls only — simplified flow
   if (state.gender_mix === 'girls') {
-    const missingField = getNextMissingField(state);
+    let s = state;
+    // Anti-loop: if about to ask night_type again, default it
+    if (getNextMissingField(s) === 'night_type') {
+      const resolved = _resolveNightType(s);
+      if (resolved) s = resolved;
+      else s = updateState(s, { night_type_asks: (s.night_type_asks || 0) + 1 });
+    }
+    const missingField = getNextMissingField(s);
     if (missingField) {
-      return { action: 'ask_question', updatedState: state, missingField, tableMinimum: null, eligibilityResult: null };
+      return { action: 'ask_question', updatedState: s, missingField, tableMinimum: null, eligibilityResult: null };
     }
     // All info collected — confirm
     const confirmed = updateState(state, { status: 'confirmed' });
@@ -278,25 +301,36 @@ function _handleGuestlistFlow(state) {
 // ─── TABLE FLOW ───────────────────────────────────────────────────────────────
 
 function _handleTableFlow(state) {
-  const missingField = getNextMissingField(state);
+  // Anti-loop: if about to ask night_type again, default it to weekend
+  let s = state;
+  if (s.night_type === null && getNextMissingField(s) === 'night_type') {
+    const resolved = _resolveNightType(s);
+    if (resolved) {
+      s = resolved;
+    } else {
+      s = updateState(s, { night_type_asks: (s.night_type_asks || 0) + 1 });
+    }
+  }
 
-  if (state.group_size !== null) {
+  const missingField = getNextMissingField(s);
+
+  if (s.group_size !== null) {
     // Large group — handoff
-    if (state.group_size >= 5) {
-      const updated = updateState(state, { status: 'handoff', handoff_reason: 'large_table_group', paused: true });
+    if (s.group_size >= 5) {
+      const updated = updateState(s, { status: 'handoff', handoff_reason: 'large_table_group', paused: true });
       return { action: 'handoff', updatedState: updated, missingField: null, tableMinimum: null, eligibilityResult: null };
     }
-    const tableMin = getTableMinimum(state.group_size, state.night_type);
+    const tableMin = getTableMinimum(s.group_size, s.night_type);
 
     if (missingField) {
-      return { action: 'ask_question', updatedState: state, missingField, tableMinimum: tableMin, eligibilityResult: null };
+      return { action: 'ask_question', updatedState: s, missingField, tableMinimum: tableMin, eligibilityResult: null };
     }
 
-    const confirmed = updateState(state, { status: 'confirmed' });
+    const confirmed = updateState(s, { status: 'confirmed' });
     return { action: 'confirm', updatedState: confirmed, missingField: null, tableMinimum: tableMin, eligibilityResult: null };
   }
 
-  return { action: 'ask_question', updatedState: state, missingField: 'group_size', tableMinimum: null, eligibilityResult: null };
+  return { action: 'ask_question', updatedState: s, missingField: 'group_size', tableMinimum: null, eligibilityResult: null };
 }
 
 module.exports = { decideNextAction, getNextMissingField, mergeRouterIntoState };

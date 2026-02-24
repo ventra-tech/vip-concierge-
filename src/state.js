@@ -54,6 +54,10 @@ function createState(subscriberId) {
     detected_gender: null,
     last_intent: null,
     conversation_history: [], // Array of { role: 'user'|'assistant', content: string }
+    username: null,
+    first_name: null,
+    night_type_asks: 0, // How many times we've asked for night_type — anti-loop counter
+    estimated_value: null,
   };
 }
 

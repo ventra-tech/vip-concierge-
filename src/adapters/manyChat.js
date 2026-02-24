@@ -79,7 +79,9 @@ function parseIncomingPayload(body) {
  * @returns {Promise<object>} ManyChat API response
  */
 async function sendTextMessage(subscriberId, text) {
-  const url = `${config.manyChat.apiBase}/fb/sending/sendContent`;
+  // Instagram DMs use /instagram/sending/sendContent (not /fb/)
+  // No message_tag — that's Facebook Messenger only
+  const url = `${config.manyChat.apiBase}/instagram/sending/sendContent`;
 
   const body = {
     subscriber_id: subscriberId,
@@ -94,7 +96,6 @@ async function sendTextMessage(subscriberId, text) {
         ],
       },
     },
-    message_tag: 'NON_PROMOTIONAL_SUBSCRIPTION',
   };
 
   const response = await fetch(url, {
