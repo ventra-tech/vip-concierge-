@@ -49,40 +49,113 @@ function tableConfirmation(state, tableMinimum) {
 }
 
 /**
- * Short approval message after Sanad approves a guys guestlist via handoff.
+ * Approval message after Sanad approves via handoff.
+ * If names already collected → send full confirmation.
+ * If names not yet collected → ask for them first.
  * @param {import('../state').ConversationState} state
  * @returns {string}
  */
 function guestlistApprovalAfterHandoff(state) {
+  const isFemale = state.detected_gender === 'female';
   const isMale = state.detected_gender === 'male';
-  return isMale
-    ? `You're all set bro ❤️‍🔥 Send me your full names + Instagram @ and I'll lock you in`
-    : `You're all set ❤️‍🔥 Send me your full names + Instagram @ and I'll lock you in`;
+  const hasNames = state.collected_names && state.collected_names.length > 0;
+  const groupDesc = _describeGroupNatural(state);
+
+  // Already have names — send the full confirmation straight away
+  if (hasNames) {
+    const names = state.collected_names.join(', ');
+    const nightInfo = state.night_type === 'weekend' ? 'this weekend' : state.night_type === 'weekday' ? 'this weekday' : 'the night';
+    return [
+      isFemale
+        ? `You girls are all set for ${nightInfo} ❤️‍🔥`
+        : `You're all set for ${nightInfo} ❤️‍🔥`,
+      `I've added ${names} on my guestlist`,
+      ``,
+      `• Entry: £${REIGN.entry_fee}`,
+      `• Arrival: by 11pm (ideal 11:00–11:30pm)`,
+      `• Dress code: dress & heels — no flats, trainers, or sportswear`,
+      `• Physical ID is MANDATORY (passport photo on phone works)`,
+      `• At the door say: "${REIGN.door_phrase}"`,
+      `• Address: ${REIGN.address}`,
+      ``,
+      `Text me when you arrive 📲`,
+    ].join('\n');
+  }
+
+  // No names yet — ask for them before sending full confirmation
+  if (isFemale) {
+    return `You${groupDesc ? ` (${groupDesc})` : ''} are all set ❤️‍🔥 Just send me your full names + Instagram @ and I'll get you locked in on my guestlist`;
+  }
+  if (isMale) {
+    return `Sorted bro ❤️‍🔥 Send me full names + Instagram @ for everyone and I'll lock you in`;
+  }
+  return `You're all set ❤️‍🔥 Send me full names + Instagram @ and I'll lock you in`;
 }
 
 /**
- * Message when Sanad says push table after handoff.
+ * Message when Sanad pushes to table after handoff.
+ * Uses actual group data from state to make it specific.
  * @param {{ min: number, label: string }} tableMinimum
  * @param {import('../state').ConversationState} state
  * @returns {string}
  */
 function pushTableAfterHandoff(tableMinimum, state) {
+  const isFemale = state.detected_gender === 'female';
   const isMale = state.detected_gender === 'male';
-  return isMale
-    ? `Actually bro, for the vibe you're going for I can sort you a proper table instead 🍾 Min ${tableMinimum.label} for ${state.guys || state.group_size} guys, you'll have your own space and bottles. What do you think?`
-    : `I can sort you a proper table instead 🍾 Min ${tableMinimum.label}, you'll have your own space and bottles. What do you think?`;
+  const groupDesc = _describeGroupNatural(state);
+  const groupText = groupDesc ? ` for ${groupDesc}` : '';
+
+  if (isFemale) {
+    return [
+      `So for your group I can sort you a private table instead 🍾`,
+      `Min spend is ${tableMinimum.label}${groupText} — you'll have your own section, bottles, and the full VIP experience`,
+      `Way better for a proper night out tbh 😏 You up for it?`,
+    ].join('\n');
+  }
+  if (isMale) {
+    return [
+      `Actually bro, best move for your group is a table 🍾`,
+      `Min ${tableMinimum.label}${groupText} — your own section, bottles sorted, no queuing`,
+      `Much better vibe. You up for it?`,
+    ].join('\n');
+  }
+  return [
+    `For your group I'd actually recommend a table 🍾`,
+    `Min spend ${tableMinimum.label}${groupText} — private section, bottles, full VIP treatment`,
+    `You up for it? 😏`,
+  ].join('\n');
 }
 
 /**
- * Message when Sanad rejects via handoff.
+ * Rejection message after Sanad declines via handoff.
+ * Warm, brief, leaves door open.
  * @param {import('../state').ConversationState} state
  * @returns {string}
  */
 function rejectionMessage(state) {
+  const isFemale = state.detected_gender === 'female';
   const isMale = state.detected_gender === 'male';
-  return isMale
-    ? `No worries bro, appreciate you reaching out 🤝 Hit me up if you change your mind`
-    : `No worries, appreciate you reaching out 🤝 Hit me up if you change your mind`;
+
+  if (isFemale) {
+    return `Hey sorry darling, unfortunately we can't accommodate your group this time 🙏 Hope to see you girls at Reign another time ❤️‍🔥`;
+  }
+  if (isMale) {
+    return `Hey bro no worries, we can't accommodate your group this time unfortunately 🙏 Hit me up another time`;
+  }
+  return `Hey, unfortunately we can't accommodate your group this time 🙏 Hope to see you at Reign another time ❤️‍🔥`;
+}
+
+// ─── HELPER ───────────────────────────────────────────────────────────────────
+
+function _describeGroupNatural(state) {
+  if (state.guys !== null && state.girls !== null) {
+    if (state.guys === 0) return `${state.girls} girls`;
+    if (state.girls === 0) return `${state.guys} guys`;
+    return `${state.guys} guys + ${state.girls} girls`;
+  }
+  if (state.group_size) return `${state.group_size} people`;
+  if (state.gender_mix === 'girls' && state.girls) return `${state.girls} girls`;
+  return null;
 }
 
 module.exports = {
