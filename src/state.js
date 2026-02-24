@@ -53,6 +53,7 @@ function createState(subscriberId) {
     turn_count: 0,
     detected_gender: null,
     last_intent: null,
+    conversation_history: [], // Array of { role: 'user'|'assistant', content: string }
   };
 }
 

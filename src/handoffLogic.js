@@ -16,30 +16,87 @@ const { resumeSession } = require('./sessionStore');
  * @returns {object} Action payload
  */
 function buildHandoffAlert(state) {
+  const baseUrl = 'https://vip-concierge-production.up.railway.app';
+  const sid = state.subscriberId;
+
+  // Build conversation history HTML
+  const historyHtml = (state.conversation_history || []).map(msg => {
+    const isBot = msg.role === 'assistant';
+    const bg = isBot ? '#f0f0f0' : '#DCF8C6';
+    const align = isBot ? 'left' : 'right';
+    return `<div style="text-align:${align};margin:4px 0;">
+      <span style="background:${bg};padding:6px 10px;border-radius:8px;display:inline-block;max-width:80%;font-size:13px;">
+        <strong>${isBot ? '🤖 Bot' : '👤 Customer'}:</strong> ${msg.content}
+      </span>
+    </div>`;
+  }).join('');
+
   const summaryLines = [
-    `🚨 *HANDOFF REQUIRED*`,
+    `🚨 HANDOFF REQUIRED`,
     `Reason: ${formatHandoffReason(state.handoff_reason)}`,
     ``,
-    `*Lead Summary:*`,
+    `Lead Summary:`,
     `• Type: ${state.lead_type}`,
     `• Group: ${_describeGroup(state)}`,
     `• Night: ${state.night_type || 'not specified'}`,
-    `• Status: ${state.status}`,
-    `• Turn: ${state.turn_count}`,
+    `• Turn count: ${state.turn_count}`,
   ];
 
   if (state.collected_names.length > 0) {
     summaryLines.push(`• Names: ${state.collected_names.join(', ')}`);
   }
 
+  // Build email HTML with all buttons + conversation history
+  const emailHtml = `
+<div style="font-family:Arial,sans-serif;max-width:600px;">
+  <h2 style="color:#FF4444;">🚨 HANDOFF REQUIRED</h2>
+  <p><strong>Reason:</strong> ${formatHandoffReason(state.handoff_reason)}</p>
+  <hr>
+  <h3>Lead Summary</h3>
+  <p>• <strong>Type:</strong> ${state.lead_type}</p>
+  <p>• <strong>Group:</strong> ${_describeGroup(state)}</p>
+  <p>• <strong>Night:</strong> ${state.night_type || 'not specified'}</p>
+  <p>• <strong>Subscriber ID:</strong> ${sid}</p>
+  ${state.collected_names.length > 0 ? `<p>• <strong>Names:</strong> ${state.collected_names.join(', ')}</p>` : ''}
+  <hr>
+  <h3>Conversation History</h3>
+  <div style="border:1px solid #ddd;padding:10px;border-radius:8px;max-height:300px;overflow-y:auto;">
+    ${historyHtml || '<p style="color:#888;">No history recorded yet</p>'}
+  </div>
+  <hr>
+  <h3>Your Decision</h3>
+  <div style="margin:20px 0;">
+    <a href="${baseUrl}/resume?subscriberId=${sid}&decision=approve_guestlist"
+       style="background:#25D366;color:white;padding:10px 16px;text-decoration:none;border-radius:5px;margin:4px;display:inline-block;">
+      ✅ Approve Guestlist
+    </a>
+    <a href="${baseUrl}/resume?subscriberId=${sid}&decision=push_table"
+       style="background:#FFD700;color:black;padding:10px 16px;text-decoration:none;border-radius:5px;margin:4px;display:inline-block;">
+      🍾 Push Table
+    </a>
+    <a href="${baseUrl}/resume?subscriberId=${sid}&decision=reject"
+       style="background:#FF4444;color:white;padding:10px 16px;text-decoration:none;border-radius:5px;margin:4px;display:inline-block;">
+      ❌ Reject
+    </a>
+    <a href="${baseUrl}/resume?subscriberId=${sid}&decision=resume_ai"
+       style="background:#007AFF;color:white;padding:10px 16px;text-decoration:none;border-radius:5px;margin:4px;display:inline-block;">
+      🤖 Resume AI
+    </a>
+    <a href="${baseUrl}/override?subscriberId=${sid}"
+       style="background:#FF9500;color:white;padding:10px 16px;text-decoration:none;border-radius:5px;margin:4px;display:inline-block;">
+      👤 Manual Override
+    </a>
+  </div>
+</div>`;
+
   return {
     type: 'HANDOFF_ALERT',
     priority: 'high',
-    subscriberId: state.subscriberId,
+    subscriberId: sid,
     summary: summaryLines.join('\n'),
+    email_html: emailHtml,
     handoff_reason: state.handoff_reason,
     state_snapshot: state,
-    // Buttons for Sanad to respond via WhatsApp bot
     sanad_options: _getSanadOptions(state),
   };
 }
@@ -81,6 +138,8 @@ const SANAD_DECISIONS = {
   PUSH_TABLE: 'push_table',
   REJECT: 'reject',
   CUSTOM: 'custom',
+  MANUAL_OVERRIDE: 'manual_override',
+  RESUME_AI: 'resume_ai',
 };
 
 /**
@@ -113,6 +172,18 @@ function resumeAfterHandoff(subscriberId, decision, extra = {}) {
     case SANAD_DECISIONS.CUSTOM:
       resumeData = { status: 'qualifying' };
       nextAction = 'custom';
+      break;
+
+    case SANAD_DECISIONS.MANUAL_OVERRIDE:
+      // Sanad takes over — keep AI paused, no reply sent
+      resumeData = { status: 'handoff', paused: true, handoff_reason: 'manual_override' };
+      nextAction = 'manual_override';
+      break;
+
+    case SANAD_DECISIONS.RESUME_AI:
+      // Resume AI without Sanad doing anything
+      resumeData = { status: 'qualifying', paused: false };
+      nextAction = 'rapport';
       break;
 
     default:
