@@ -1,7 +1,7 @@
 /**
  * templates/objections.js
  * Deterministic responses to common objections.
- * Used by toneComposer as a starting point — LLM can rephrase if needed.
+ * Matches Sanad's exact phrasing from real conversations.
  */
 
 /**
@@ -13,26 +13,31 @@
 function getObjectionResponse(rawText, gender) {
   const lower = rawText.toLowerCase();
   const isMale = gender === 'male';
+  const isFemale = gender === 'female';
 
-  // "Is it free?" / "Isn't it free?" / "ain't free"
-  if (lower.includes('free') || lower.includes('ain\'t free') || lower.includes('not free')) {
-    return `The entry is the only thing you pay for. Once you're inside you're good — I've got you 🕺🥂`;
+  // "Is it free?" / "Isn't it free?" / "ain't free" / "it aint free"
+  // Two-message script: entry only + drinks complimentary pitch
+  if (lower.includes('free') || lower.includes("ain't free") || lower.includes('aint free') || lower.includes('not free')) {
+    return [
+      `The entry is the only thing you pay for`,
+      `Your drinks are complimentary all night and you get to see all exclusive shows on my vip table And party with the best in Mayfair x`,
+    ].join('\n');
   }
 
-  // "Too expensive" / "that's a lot"
+  // "Too expensive" / "that's a lot" / "pricey"
   if (
     lower.includes('expensive') ||
     lower.includes('too much') ||
-    lower.includes('that\'s a lot') ||
+    lower.includes("that's a lot") ||
     lower.includes('thats a lot') ||
     lower.includes('pricey')
   ) {
     return isMale
-      ? `Trust me bro, for Mayfair it's actually solid value 😏 What vibe you going for?`
-      : `Trust me darling, for Mayfair it's actually great value 🥂 What vibe you going for?`;
+      ? `Trust me bro for Mayfair it's actually solid value 😏 What vibe you going for?`
+      : `Trust me darling for Mayfair it's actually great value 🥂 What vibe you going for?`;
   }
 
-  // "Nah" / "never mind" / "forget it"
+  // "Nah" / "never mind" / "forget it" / not interested
   if (
     lower.includes('nah') ||
     lower.includes('never mind') ||
@@ -41,17 +46,20 @@ function getObjectionResponse(rawText, gender) {
   ) {
     return isMale
       ? `No worries bro 🤝 Hit me up if you change your mind`
-      : `No worries 🤝 Hit me up if you change your mind`;
+      : `No worries gorgeous x Hit me up if you change your mind`;
   }
 
-  // Quality doubts / skepticism
+  // Quality doubts / skepticism / "is it good" / "worth it"
   if (
     lower.includes('worth it') ||
     lower.includes('is it good') ||
     lower.includes('any good') ||
-    lower.includes('trust')
+    lower.includes('classy') ||
+    lower.includes('quality')
   ) {
-    return `Please bro i got quality 😏 Reign is proper Mayfair vibes. You'll see.`;
+    return isMale
+      ? `Dw bro i got you\nPlease bro i got quality 😏 Reign is proper Mayfair vibes. You'll see.`
+      : `Trust me darling it's proper Mayfair 🥂 You'll love it`;
   }
 
   return null; // No match — let LLM handle
@@ -65,20 +73,20 @@ function getObjectionResponse(rawText, gender) {
 function getBirthdayResponse(gender) {
   const isFemale = gender === 'female';
   return isFemale
-    ? `Love that 🥂 Birthday nights hit different at Reign 👀 I'll make sure it's a good one 🫠`
-    : `Love that 🥂 Birthday nights hit different at Reign 👀 I'll make sure it's a good one 🫠`;
+    ? `Amazing darling 🥂 I got a surprise for you girls! Send me a good picture of the birthday girl x`
+    : `Love that bro 🥂 Birthday nights hit different at Reign 👀 I'll make sure it's a good one`;
 }
 
 /**
- * Response when someone asks if tonight is good.
+ * Response when someone asks if tonight is good / active.
  * @param {'male'|'female'|'neutral'} gender
  * @returns {string}
  */
 function getTonightResponse(gender) {
   const isMale = gender === 'male';
   return isMale
-    ? `Yes ofc bro 😏 Tonight's perfect. How many of you and what vibe you going for? 🥂`
-    : `Yes ofc 😏 Tonight's perfect. How many of you and what vibe you going for? 🥂`;
+    ? `Yes ofc bro tonight is active 🕺 How many of you?`
+    : `Yes ofc darling tonight is perfect 😏 How many of you?`;
 }
 
 module.exports = { getObjectionResponse, getBirthdayResponse, getTonightResponse };

@@ -43,6 +43,7 @@ function getNextMissingField(state) {
     if (state.group_size === null) return 'group_size';
     if (state.night_type === null) return 'night_type';
     if (state.collected_names.length === 0) return 'full_name_for_table';
+    if (!state.phone_number) return 'phone_number';
     return null;
   }
 
@@ -111,6 +112,11 @@ function mergeRouterIntoState(state, routerOutput, intent) {
     const existing = state.collected_instagrams || [];
     const merged = [...new Set([...existing, ...routerOutput.instagrams])];
     updates.collected_instagrams = merged;
+  }
+
+  // Capture phone number if provided
+  if (routerOutput.phoneNumber && !state.phone_number) {
+    updates.phone_number = routerOutput.phoneNumber;
   }
 
   // ── Post-processing: reconcile state ──

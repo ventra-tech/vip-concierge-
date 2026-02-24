@@ -2,56 +2,66 @@
  * templates/confirmations.js
  * Deterministic confirmation messages — no LLM involved.
  * All required venue info is always included.
+ * Styled to match Sanad's exact messaging format from real conversations.
  */
 
 const { REIGN } = require('../policy/reign');
 
+// ─── NIGHT LABEL HELPER ───────────────────────────────────────────────────────
+
+function _nightLabel(night_type) {
+  if (night_type === 'weekend') return 'this weekend';
+  if (night_type === 'weekday') return 'this weekday';
+  return 'tonight';
+}
+
+// ─── GUESTLIST CONFIRMATION ───────────────────────────────────────────────────
+
 /**
  * Full guestlist confirmation message.
- * Sent after collecting name + Instagram.
+ * Matches Sanad's exact plain-text format (no bullet points).
  * @param {import('../state').ConversationState} state
  * @returns {string}
  */
 function guestlistConfirmation(state) {
-  const nightInfo = state.night_type ? ` for ${state.night_type === 'weekend' ? 'this weekend' : 'the weekday'}` : '';
+  const night = _nightLabel(state.night_type);
   return [
-    `You're all set${nightInfo} at Reign ❤️‍🔥`,
-    `I've added you on my guestlist`,
+    `For - Reign ${night}`,
+    `Address: ${REIGN.address}`,
     ``,
-    `• Entry: £${REIGN.entry_fee}`,
-    `• Arrival: by 11pm (ideal 11:00–11:30pm)`,
-    `• Dress code: dress & heels (elegant wear) — no flats, trainers, or sportswear`,
-    `• Physical ID is MANDATORY (picture of passport on phone works too)`,
-    `• At the door say: "${REIGN.door_phrase}"`,
-    `• Address: ${REIGN.address}`,
+    `Entry: £${REIGN.entry_fee}`,
+    `Please arrive by 23:00`,
+    `Dress code: ${REIGN.dress_code_girls}`,
+    `${REIGN.id_requirement}`,
     ``,
-    `Text me when you arrive 📲`,
+    `Text me when you arrive 📱`,
     ``,
-    `Also leave a 5 star review for ${REIGN.instagram} mentioning my name and how your experience was 😘`,
+    `At the door say "${REIGN.door_phrase}"`,
   ].join('\n');
 }
 
+// ─── TABLE CONFIRMATION ───────────────────────────────────────────────────────
+
 /**
- * Table confirmation message.
- * Sent after collecting name and group details.
+ * Table booking confirmation — asks for name + phone number.
  * @param {import('../state').ConversationState} state
  * @param {{ min: number, label: string }} tableMinimum
  * @returns {string}
  */
 function tableConfirmation(state, tableMinimum) {
-  const name = state.collected_names[0] || 'your name';
   return [
     `Easy ❤️ I can do a table min spending ${tableMinimum.label}`,
-    ``,
-    `Send me your full name and I'll book you the table under your name`,
-    `And send me your number — I'll add you to a group chat with the owner, he's a good friend of mine as well`,
+    `Send me your full name for the booking and your number as well`,
+    `I'll add you to a gc with the owner, he is a good friend of mine as well`,
   ].join('\n');
 }
 
+// ─── APPROVAL AFTER HANDOFF ───────────────────────────────────────────────────
+
 /**
- * Approval message after Sanad approves via handoff.
+ * Sent when Sanad approves via handoff email button.
  * If names already collected → send full confirmation.
- * If names not yet collected → ask for them first.
+ * If no names yet → ask for them first.
  * @param {import('../state').ConversationState} state
  * @returns {string}
  */
@@ -59,42 +69,39 @@ function guestlistApprovalAfterHandoff(state) {
   const isFemale = state.detected_gender === 'female';
   const isMale = state.detected_gender === 'male';
   const hasNames = state.collected_names && state.collected_names.length > 0;
-  const groupDesc = _describeGroupNatural(state);
+  const night = _nightLabel(state.night_type);
 
-  // Already have names — send the full confirmation straight away
   if (hasNames) {
-    const names = state.collected_names.join(', ');
-    const nightInfo = state.night_type === 'weekend' ? 'this weekend' : state.night_type === 'weekday' ? 'this weekday' : 'the night';
     return [
-      isFemale
-        ? `You girls are all set for ${nightInfo} ❤️‍🔥`
-        : `You're all set for ${nightInfo} ❤️‍🔥`,
-      `I've added ${names} on my guestlist`,
+      `All booked in all you x`,
       ``,
-      `• Entry: £${REIGN.entry_fee}`,
-      `• Arrival: by 11pm (ideal 11:00–11:30pm)`,
-      `• Dress code: dress & heels — no flats, trainers, or sportswear`,
-      `• Physical ID is MANDATORY (passport photo on phone works)`,
-      `• At the door say: "${REIGN.door_phrase}"`,
-      `• Address: ${REIGN.address}`,
+      `For - Reign ${night}`,
+      `Address: ${REIGN.address}`,
       ``,
-      `Text me when you arrive 📲`,
+      `Entry: £${REIGN.entry_fee}`,
+      `Please arrive by 23:00`,
+      `Dress code: ${REIGN.dress_code_girls}`,
+      `${REIGN.id_requirement}`,
+      ``,
+      `Text me when you arrive 📱`,
+      ``,
+      `At the door say "${REIGN.door_phrase}"`,
     ].join('\n');
   }
 
-  // No names yet — ask for them before sending full confirmation
   if (isFemale) {
-    return `You${groupDesc ? ` (${groupDesc})` : ''} are all set ❤️‍🔥 Just send me your full names + Instagram @ and I'll get you locked in on my guestlist`;
+    return `You're all set ❤️‍🔥 What I will need is full names with instagrams and I'll book you girls on my guestlist for ${night} x`;
   }
   if (isMale) {
-    return `Sorted bro ❤️‍🔥 Send me full names + Instagram @ for everyone and I'll lock you in`;
+    return `Sorted bro ❤️‍🔥 Send me full names + Instagram @ and I'll lock you in`;
   }
   return `You're all set ❤️‍🔥 Send me full names + Instagram @ and I'll lock you in`;
 }
 
+// ─── PUSH TO TABLE AFTER HANDOFF ──────────────────────────────────────────────
+
 /**
- * Message when Sanad pushes to table after handoff.
- * Uses actual group data from state to make it specific.
+ * Sent when Sanad pushes group to table after handoff.
  * @param {{ min: number, label: string }} tableMinimum
  * @param {import('../state').ConversationState} state
  * @returns {string}
@@ -102,33 +109,31 @@ function guestlistApprovalAfterHandoff(state) {
 function pushTableAfterHandoff(tableMinimum, state) {
   const isFemale = state.detected_gender === 'female';
   const isMale = state.detected_gender === 'male';
-  const groupDesc = _describeGroupNatural(state);
-  const groupText = groupDesc ? ` for ${groupDesc}` : '';
 
-  if (isFemale) {
-    return [
-      `So for your group I can sort you a private table instead 🍾`,
-      `Min spend is ${tableMinimum.label}${groupText} — you'll have your own section, bottles, and the full VIP experience`,
-      `Way better for a proper night out tbh 😏 You up for it?`,
-    ].join('\n');
-  }
   if (isMale) {
     return [
-      `Actually bro, best move for your group is a table 🍾`,
-      `Min ${tableMinimum.label}${groupText} — your own section, bottles sorted, no queuing`,
-      `Much better vibe. You up for it?`,
+      `I can do a table for your group bro 🍾`,
+      `Min spending ${tableMinimum.label}`,
+      `Send me your full name and number and I'll get it sorted`,
+    ].join('\n');
+  }
+  if (isFemale) {
+    return [
+      `I can sort you girls a table instead 🍾`,
+      `Min spend ${tableMinimum.label} — your own section, bottles, full VIP`,
+      `Send me your full name and number x`,
     ].join('\n');
   }
   return [
-    `For your group I'd actually recommend a table 🍾`,
-    `Min spend ${tableMinimum.label}${groupText} — private section, bottles, full VIP treatment`,
-    `You up for it? 😏`,
+    `I can do a table — min spend ${tableMinimum.label} 🍾`,
+    `Send me your full name and number and I'll get it booked`,
   ].join('\n');
 }
 
+// ─── REJECTION MESSAGE ────────────────────────────────────────────────────────
+
 /**
- * Rejection message after Sanad declines via handoff.
- * Warm, brief, leaves door open.
+ * Warm rejection — no "unfortunately", leaves door open.
  * @param {import('../state').ConversationState} state
  * @returns {string}
  */
@@ -137,12 +142,26 @@ function rejectionMessage(state) {
   const isMale = state.detected_gender === 'male';
 
   if (isFemale) {
-    return `Hey sorry darling, unfortunately we can't accommodate your group this time 🙏 Hope to see you girls at Reign another time ❤️‍🔥`;
+    return `Sorry darling, can't accommodate your group this time 🙏\nHope to see you girls at Reign another night ❤️‍🔥`;
   }
   if (isMale) {
-    return `Hey bro no worries, we can't accommodate your group this time unfortunately 🙏 Hit me up another time`;
+    return `No worries bro, can't do it this time 🙏\nHit me up another night`;
   }
-  return `Hey, unfortunately we can't accommodate your group this time 🙏 Hope to see you at Reign another time ❤️‍🔥`;
+  return `Sorry, can't accommodate your group this time 🙏\nHope to see you at Reign another night ❤️‍🔥`;
+}
+
+// ─── REVIEW REQUEST ───────────────────────────────────────────────────────────
+
+/**
+ * Post-event review ask. Emoji matches Sanad's real messages.
+ * @param {'male'|'female'|'neutral'} gender
+ * @returns {string}
+ */
+function reviewRequest(gender) {
+  const isFemale = gender === 'female';
+  return isFemale
+    ? `Also leave a 5 star review for ${REIGN.instagram} mentioning my name and how your experience was fun 🥳`
+    : `Also leave a 5 star review for ${REIGN.instagram} mentioning my name and how your experience was fun 🥳`;
 }
 
 // ─── HELPER ───────────────────────────────────────────────────────────────────
@@ -164,4 +183,5 @@ module.exports = {
   guestlistApprovalAfterHandoff,
   pushTableAfterHandoff,
   rejectionMessage,
+  reviewRequest,
 };

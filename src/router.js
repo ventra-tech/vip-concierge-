@@ -172,7 +172,13 @@ function extractNumbers(text) {
 
 /**
  * Extract full names and Instagram handles from a message.
- * Called when the bot is expecting names/handles from the customer.
+ * Handles all formats seen in real Sanad conversations:
+ *   - Comma-separated: "alexa lewis, bree stewart, grace roggeman, ella ward"
+ *   - Multi-line block: "Hey,\nNames\nMaggie voisin\nIndianna Buckley\nLolly Britton"
+ *   - Two lines: "Rachel Chilcott\nJamie-Lee Brackstone"
+ *   - All caps surnames: "Nouhaila EL KADIRI\nZineb EL KADIRI"
+ *   - Instagram.com URLs: "https://www.instagram.com/username?igsh=..."
+ *   - @username handles
  * @param {string} text
  * @returns {{ names: string[], instagrams: string[] }}
  */
@@ -180,34 +186,109 @@ function extractNamesAndInstagram(text) {
   const names = [];
   const instagrams = [];
 
-  // Extract Instagram handles — @username (letters, numbers, dots, underscores)
+  // ── 1. Extract @username handles ──
   const igMatches = text.match(/@[\w.]+/g);
   if (igMatches) {
     igMatches.forEach(handle => instagrams.push(handle.toLowerCase()));
   }
 
-  // Pattern: "my name is X Y" / "name's X Y" / "I'm X Y" / "it's X Y"
-  const namedMatch = text.match(
-    /(?:my name(?:'s| is)|name is|i'm|im|it's|its|i am)\s+([A-Za-z]+(?:\s+[A-Za-z]+){0,2})/i
-  );
-  if (namedMatch) {
-    const cleaned = namedMatch[1].trim();
-    if (cleaned.length > 1) names.push(cleaned);
+  // ── 2. Extract instagram.com profile URLs ──
+  const igUrlMatches = text.match(/(?:https?:\/\/)?(?:www\.)?instagram\.com\/([A-Za-z0-9._]+)/g);
+  if (igUrlMatches) {
+    igUrlMatches.forEach(url => {
+      const match = url.match(/instagram\.com\/([A-Za-z0-9._]+)/);
+      // Exclude path segments like /p/ /reel/ /stories/
+      if (match && match[1] && !['p', 'reel', 'stories', 'explore'].includes(match[1])) {
+        const handle = '@' + match[1].toLowerCase();
+        if (!instagrams.includes(handle)) instagrams.push(handle);
+      }
+    });
   }
 
-  // Pattern: "Full Name @handle" — name then instagram on same line
+  // ── 3. Try comma-separated names ──
+  // e.g. "alexa lewis, bree stewart, grace roggeman, ella ward"
+  const commaParts = text.split(',').map(p => p.trim()).filter(Boolean);
+  if (commaParts.length >= 2) {
+    const nameParts = [];
+    let allNames = true;
+    for (const part of commaParts) {
+      // Strip any instagram handles from the part
+      const cleaned = part.replace(/@[\w.]+/g, '').replace(/(?:https?:\/\/)?(?:www\.)?instagram\.com\/\S+/gi, '').trim();
+      // Allow: "First Last", "First-Last Last", "FIRST LAST", "First Last Last"
+      if (/^[A-Za-z]+([-'][A-Za-z]+)?(\s+[A-Za-z]+([-'][A-Za-z]+)?)+$/.test(cleaned)) {
+        nameParts.push(cleaned);
+      } else {
+        allNames = false;
+        break;
+      }
+    }
+    if (allNames && nameParts.length >= 2) {
+      nameParts.forEach(n => names.push(n));
+    }
+  }
+
+  // ── 4. Try multi-line names ──
+  // Handles blocks like: "Hey,\nNames\nMaggie voisin\nIndianna Buckley"
+  // and simple pairs: "Rachel Chilcott\nJamie-Lee Brackstone"
   if (names.length === 0) {
-    const nameHandleMatch = text.match(/^([A-Za-z]+(?:\s+[A-Za-z]+){1,2})\s+@/i);
+    const lines = text.split(/\n/).map(l => l.trim()).filter(Boolean);
+    for (const line of lines) {
+      // Skip known header/footer lines
+      if (/^(hey,?|names?:?|instagrams?:?|ig:?|hi,?|hello,?)$/i.test(line)) continue;
+      // Skip lines containing @ or instagram.com
+      if (line.includes('@') || /instagram\.com/i.test(line)) continue;
+      // Skip lines that are clearly not names (long sentences, punctuation etc.)
+      if (line.length > 60 || /[.!?]/.test(line)) continue;
+      // Must look like a name: 2-3 words, letters + hyphens/apostrophes allowed, mixed or all-caps surnames OK
+      if (/^[A-Za-z]+([-'][A-Za-z]+)?(\s+[A-Za-z]+([-'][A-Za-z]+)?){1,2}$/.test(line)) {
+        names.push(line);
+      }
+    }
+  }
+
+  // ── 5. Try "my name is X" / "i'm X" patterns ──
+  if (names.length === 0) {
+    const namedMatch = text.match(
+      /(?:my name(?:'s| is)|name is|i'm|im|it's|its|i am)\s+([A-Za-z]+(?:\s+[A-Za-z]+){0,2})/i
+    );
+    if (namedMatch) {
+      const cleaned = namedMatch[1].trim();
+      if (cleaned.length > 1) names.push(cleaned);
+    }
+  }
+
+  // ── 6. Try "Full Name @handle" — name then handle on same line ──
+  if (names.length === 0) {
+    const nameHandleMatch = text.match(/^([A-Za-z]+([-'][A-Za-z]+)?(?:\s+[A-Za-z]+([-'][A-Za-z]+)?){1,2})\s+@/i);
     if (nameHandleMatch) names.push(nameHandleMatch[1].trim());
   }
 
-  // Pattern: bare "FirstName LastName" with no other context (2-3 capitalised words)
+  // ── 7. Bare "FirstName LastName" (capitalised, nothing else in message) ──
   if (names.length === 0 && instagrams.length === 0) {
-    const bareNameMatch = text.match(/^([A-Z][a-z]+(?:\s+[A-Z][a-z]+){1,2})$/);
+    const bareNameMatch = text.match(/^([A-Z][a-zA-Z]+([-'][A-Za-z]+)?(?:\s+[A-Z][a-zA-Z]+([-'][A-Za-z]+)?){1,2})$/);
     if (bareNameMatch) names.push(bareNameMatch[1].trim());
   }
 
   return { names, instagrams };
+}
+
+// ─── PHONE NUMBER EXTRACTION ──────────────────────────────────────────────────
+
+/**
+ * Extract a phone number from text.
+ * Handles UK and international formats.
+ * @param {string} text
+ * @returns {string|null}
+ */
+function extractPhoneNumber(text) {
+  // Match UK numbers (+44...), international (+X...), or bare 07... / 07...
+  const match = text.match(/(\+?[\d\s\-().]{10,16})/);
+  if (match) {
+    const cleaned = match[1].replace(/[\s\-().]/g, '');
+    // Must be at least 10 digits
+    if (/^\+?\d{10,15}$/.test(cleaned)) return cleaned;
+  }
+  return null;
 }
 
 // ─── DATE / NIGHT EXTRACTION ──────────────────────────────────────────────────
@@ -317,10 +398,11 @@ async function classifyMessage(manyChatPayload, messageText) {
   // Step 2: LLM fallback only if keywords failed
   const intent = keywordIntent || (await llmClassifyIntent(text));
 
-  // Step 3: extract numbers, date signals, names and Instagram handles
+  // Step 3: extract numbers, date signals, names, Instagram handles, phone numbers
   const { groupSize, guys, girls } = extractNumbers(text);
   const nightType = extractNightType(text);
   const { names, instagrams } = extractNamesAndInstagram(text);
+  const phoneNumber = extractPhoneNumber(text);
 
   return {
     intent,
@@ -331,6 +413,7 @@ async function classifyMessage(manyChatPayload, messageText) {
     nightType,
     names,
     instagrams,
+    phoneNumber,
     rawText: text,
     classifiedBy,
   };

@@ -22,6 +22,7 @@
  * @property {boolean} paused             - True when handoff is active, AI stops responding
  * @property {string[]} collected_names   - Full names collected so far
  * @property {string[]} collected_instagrams - Instagram handles collected
+ * @property {string|null} phone_number   - Phone number for table bookings
  * @property {number} turn_count          - How many messages exchanged
  * @property {string|null} detected_gender - 'male'|'female'|'neutral'
  * @property {string|null} last_intent    - Last classified intent
@@ -50,6 +51,7 @@ function createState(subscriberId) {
     paused: false,
     collected_names: [],
     collected_instagrams: [],
+    phone_number: null,
     turn_count: 0,
     detected_gender: null,
     last_intent: null,

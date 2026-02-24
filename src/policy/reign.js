@@ -6,13 +6,14 @@
 
 const REIGN = {
   name: 'Reign',
-  address: '215–217 Piccadilly, St. James\'s, London, W1J 9HN',
+  address: '215, The London Reign, 217 Piccadilly, London W1J 9HN',
   instagram: '@ldnreign',
   entry_fee: 20,
   arrival_by: '23:00',
-  arrival_ideal: '11:00–11:30 PM',
-  dress_code: 'Dress & heels (elegant wear) — no flats, trainers, or sportswear',
-  id_requirement: 'Physical ID mandatory (photo of passport on phone also accepted)',
+  arrival_ideal: '11:30pm–midnight',
+  dress_code_girls: 'elegant & heels',
+  dress_code_guys: 'smart wear',
+  id_requirement: 'Physical ID required (and photo of passport on phone)',
   door_phrase: 'Sanad guestlist',
 };
 
