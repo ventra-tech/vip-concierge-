@@ -58,6 +58,7 @@ function createState(subscriberId) {
     first_name: null,
     night_type_asks: 0, // How many times we've asked for night_type — anti-loop counter
     estimated_value: null,
+    last_holding_index: -1, // Tracks holding message rotation when paused
   };
 }
 

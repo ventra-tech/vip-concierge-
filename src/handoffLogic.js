@@ -151,16 +151,10 @@ function buildHandoffAlert(state) {
         </td>
       </tr>
       <tr>
-        <td>
+        <td colspan="2">
           <a href="${baseUrl}/resume?subscriberId=${sid}&decision=reject"
              style="display:block;background:#ef4444;color:white;padding:12px 10px;text-decoration:none;border-radius:8px;font-size:14px;font-weight:700;text-align:center;">
             ❌ Reject
-          </a>
-        </td>
-        <td>
-          <a href="${baseUrl}/resume?subscriberId=${sid}&decision=resume_ai"
-             style="display:block;background:#3b82f6;color:white;padding:12px 10px;text-decoration:none;border-radius:8px;font-size:14px;font-weight:700;text-align:center;">
-            🤖 Resume AI
           </a>
         </td>
       </tr>

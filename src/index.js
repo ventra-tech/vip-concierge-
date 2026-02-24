@@ -13,16 +13,20 @@ const { composeReply } = require('./persona/toneComposer');
 const { logEvent, logHandoff, logConfirmation, logMessageReceived } = require('./analytics/logger');
 const { updateState } = require('./state');
 
-// Holding messages when AI is paused — rotates so it doesn't feel robotic
+// Holding messages when AI is paused — cycles sequentially, never repeats back to back
 const HOLDING_MESSAGES = [
   "Bear with me one sec 👀",
   "Still sorting this for you 🙏",
   "Give me a moment ❤️‍🔥",
   "On it — back with you shortly 👀",
+  "Just checking on this for you 😏",
+  "Won't be long 🥂",
 ];
 
-function _getHoldingWhilePaused() {
-  return HOLDING_MESSAGES[Math.floor(Math.random() * HOLDING_MESSAGES.length)];
+function _getHoldingWhilePaused(state) {
+  const lastIndex = state.last_holding_index ?? -1;
+  const nextIndex = (lastIndex + 1) % HOLDING_MESSAGES.length;
+  return { message: HOLDING_MESSAGES[nextIndex], nextIndex };
 }
 
 /**
@@ -67,10 +71,10 @@ async function processMessage(manyChatBody) {
 
   // ── 5. If session is paused (handoff active) — send holding message ──
   if (state.paused) {
-    const holdingReply = _getHoldingWhilePaused();
-    // Save updated history
+    const { message: holdingReply, nextIndex } = _getHoldingWhilePaused(state);
+    // Save updated history and holding index so it never repeats
     const updatedHistory = _addToHistory(state, 'assistant', holdingReply);
-    state = { ...state, conversation_history: updatedHistory };
+    state = { ...state, conversation_history: updatedHistory, last_holding_index: nextIndex };
     saveSession(subscriberId, state);
     const analyticsEvent = logEvent('message_while_paused', state);
     return {
