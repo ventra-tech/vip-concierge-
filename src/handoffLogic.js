@@ -57,71 +57,125 @@ function buildHandoffAlert(state) {
     ? `£${state.estimated_value.toLocaleString()}`
     : state.lead_type === 'table' ? 'TBC' : 'Free (guestlist)';
 
+  // Lead type badge colour
+  const leadBadgeColor = state.lead_type === 'table' ? '#7C3AED' : '#0EA5E9';
+  const leadLabel = state.lead_type === 'table' ? '🍾 Table' : state.lead_type === 'guestlist' ? '✅ Guestlist' : '❓ Unknown';
+  const nightLabel = state.night_type === 'weekend' ? '🎉 Weekend' : state.night_type === 'weekday' ? '📅 Weekday' : '❓ Not specified';
+
   // Build email HTML with all buttons + conversation history
   const emailHtml = `
-<div style="font-family:Arial,sans-serif;max-width:600px;">
-  <h2 style="color:#FF4444;">🚨 HANDOFF REQUIRED — ${displayName}</h2>
+<div style="font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Arial,sans-serif;max-width:600px;background:#f8f9fa;padding:0;">
 
-  <!-- Quick Summary Card -->
-  <div style="background:#fff8e1;border-left:4px solid #FF9500;padding:14px 18px;border-radius:6px;margin:12px 0;">
-    <table style="width:100%;border-collapse:collapse;font-size:14px;">
+  <!-- Header -->
+  <div style="background:#1a1a2e;padding:24px;border-radius:12px 12px 0 0;">
+    <p style="margin:0 0 4px;color:#FF6B6B;font-size:12px;font-weight:600;letter-spacing:1px;text-transform:uppercase;">Action Required</p>
+    <h2 style="margin:0;color:#ffffff;font-size:22px;">🚨 Handoff — ${displayName}</h2>
+    <p style="margin:6px 0 0;color:#a0aec0;font-size:13px;">${formatHandoffReason(state.handoff_reason)}</p>
+  </div>
+
+  <!-- Summary Tiles -->
+  <div style="background:#ffffff;padding:20px;border-left:1px solid #e2e8f0;border-right:1px solid #e2e8f0;">
+    <table style="width:100%;border-collapse:separate;border-spacing:8px;">
       <tr>
-        <td style="padding:4px 8px;color:#555;">👤 Customer</td>
-        <td style="padding:4px 8px;font-weight:bold;">${displayName}</td>
-        <td style="padding:4px 8px;color:#555;">📋 Lead Type</td>
-        <td style="padding:4px 8px;font-weight:bold;text-transform:capitalize;">${state.lead_type || 'unknown'}</td>
+        <!-- Customer -->
+        <td style="background:#f1f5f9;border-radius:10px;padding:12px 14px;width:50%;vertical-align:top;">
+          <div style="font-size:11px;color:#64748b;font-weight:600;text-transform:uppercase;letter-spacing:0.5px;margin-bottom:4px;">👤 Customer</div>
+          <div style="font-size:15px;font-weight:700;color:#1e293b;">${displayName}</div>
+        </td>
+        <!-- Lead Type -->
+        <td style="background:#f1f5f9;border-radius:10px;padding:12px 14px;width:50%;vertical-align:top;">
+          <div style="font-size:11px;color:#64748b;font-weight:600;text-transform:uppercase;letter-spacing:0.5px;margin-bottom:4px;">📋 Lead Type</div>
+          <div style="font-size:15px;font-weight:700;color:${leadBadgeColor};">${leadLabel}</div>
+        </td>
       </tr>
       <tr>
-        <td style="padding:4px 8px;color:#555;">👥 Group</td>
-        <td style="padding:4px 8px;font-weight:bold;">${_describeGroup(state)}</td>
-        <td style="padding:4px 8px;color:#555;">🌙 Night</td>
-        <td style="padding:4px 8px;font-weight:bold;text-transform:capitalize;">${state.night_type || 'not specified'}</td>
+        <!-- Group -->
+        <td style="background:#f1f5f9;border-radius:10px;padding:12px 14px;vertical-align:top;">
+          <div style="font-size:11px;color:#64748b;font-weight:600;text-transform:uppercase;letter-spacing:0.5px;margin-bottom:4px;">👥 Group</div>
+          <div style="font-size:15px;font-weight:700;color:#1e293b;">${_describeGroup(state)}</div>
+        </td>
+        <!-- Night -->
+        <td style="background:#f1f5f9;border-radius:10px;padding:12px 14px;vertical-align:top;">
+          <div style="font-size:11px;color:#64748b;font-weight:600;text-transform:uppercase;letter-spacing:0.5px;margin-bottom:4px;">🌙 Night</div>
+          <div style="font-size:15px;font-weight:700;color:#1e293b;">${nightLabel}</div>
+        </td>
       </tr>
       <tr>
-        <td style="padding:4px 8px;color:#555;">💰 Est. Value</td>
-        <td style="padding:4px 8px;font-weight:bold;color:#25D366;">${estValue}</td>
-        <td style="padding:4px 8px;color:#555;">💬 Turns</td>
-        <td style="padding:4px 8px;font-weight:bold;">${state.turn_count} messages</td>
-      </tr>
-      <tr>
-        <td style="padding:4px 8px;color:#555;">🚨 Reason</td>
-        <td colspan="3" style="padding:4px 8px;font-weight:bold;color:#FF4444;">${formatHandoffReason(state.handoff_reason)}</td>
+        <!-- Est. Value -->
+        <td style="background:#f0fdf4;border:1px solid #bbf7d0;border-radius:10px;padding:12px 14px;vertical-align:top;">
+          <div style="font-size:11px;color:#16a34a;font-weight:600;text-transform:uppercase;letter-spacing:0.5px;margin-bottom:4px;">💰 Est. Value</div>
+          <div style="font-size:18px;font-weight:800;color:#15803d;">${estValue}</div>
+        </td>
+        <!-- Turn Count -->
+        <td style="background:#f1f5f9;border-radius:10px;padding:12px 14px;vertical-align:top;">
+          <div style="font-size:11px;color:#64748b;font-weight:600;text-transform:uppercase;letter-spacing:0.5px;margin-bottom:4px;">💬 Messages</div>
+          <div style="font-size:15px;font-weight:700;color:#1e293b;">${state.turn_count} turns</div>
+        </td>
       </tr>
       ${state.collected_names.length > 0 ? `
       <tr>
-        <td style="padding:4px 8px;color:#555;">📝 Names</td>
-        <td colspan="3" style="padding:4px 8px;font-weight:bold;">${state.collected_names.join(', ')}</td>
+        <td colspan="2" style="background:#fefce8;border:1px solid #fde68a;border-radius:10px;padding:12px 14px;vertical-align:top;">
+          <div style="font-size:11px;color:#92400e;font-weight:600;text-transform:uppercase;letter-spacing:0.5px;margin-bottom:4px;">📝 Names Collected</div>
+          <div style="font-size:14px;font-weight:600;color:#1e293b;">${state.collected_names.join(' · ')}</div>
+        </td>
       </tr>` : ''}
     </table>
   </div>
-  <h3>Conversation History ${totalMessages > 0 ? `<span style="font-weight:normal;font-size:13px;color:#888;">(${totalMessages} messages)</span>` : ''}</h3>
-  <div style="border:1px solid #ddd;padding:10px;border-radius:8px;max-height:300px;overflow-y:auto;">
-    ${historyHtml || '<p style="color:#888;">No history recorded yet</p>'}
+
+  <!-- Conversation History -->
+  <div style="background:#ffffff;padding:20px;border-left:1px solid #e2e8f0;border-right:1px solid #e2e8f0;border-top:1px solid #e2e8f0;">
+    <p style="margin:0 0 12px;font-size:13px;font-weight:700;color:#374151;text-transform:uppercase;letter-spacing:0.5px;">
+      💬 Conversation ${totalMessages > 0 ? `<span style="font-weight:400;color:#9ca3af;">(${totalMessages} messages)</span>` : ''}
+    </p>
+  <div style="border:1px solid #e2e8f0;padding:12px;border-radius:10px;max-height:300px;overflow-y:auto;background:#fafafa;">
+    ${historyHtml || '<p style="color:#9ca3af;font-size:13px;text-align:center;margin:20px 0;">No messages recorded yet</p>'}
   </div>
-  <hr>
-  <h3>Your Decision</h3>
-  <div style="margin:20px 0;">
-    <a href="${baseUrl}/resume?subscriberId=${sid}&decision=approve_guestlist"
-       style="background:#25D366;color:white;padding:10px 16px;text-decoration:none;border-radius:5px;margin:4px;display:inline-block;">
-      ✅ Approve Guestlist
-    </a>
-    <a href="${baseUrl}/resume?subscriberId=${sid}&decision=push_table"
-       style="background:#FFD700;color:black;padding:10px 16px;text-decoration:none;border-radius:5px;margin:4px;display:inline-block;">
-      🍾 Push Table
-    </a>
-    <a href="${baseUrl}/resume?subscriberId=${sid}&decision=reject"
-       style="background:#FF4444;color:white;padding:10px 16px;text-decoration:none;border-radius:5px;margin:4px;display:inline-block;">
-      ❌ Reject
-    </a>
-    <a href="${baseUrl}/resume?subscriberId=${sid}&decision=resume_ai"
-       style="background:#007AFF;color:white;padding:10px 16px;text-decoration:none;border-radius:5px;margin:4px;display:inline-block;">
-      🤖 Resume AI
-    </a>
-    <a href="${baseUrl}/override?subscriberId=${sid}"
-       style="background:#FF9500;color:white;padding:10px 16px;text-decoration:none;border-radius:5px;margin:4px;display:inline-block;">
-      👤 Manual Override
-    </a>
   </div>
+
+  <!-- Action Buttons -->
+  <div style="background:#1a1a2e;padding:20px;border-radius:0 0 12px 12px;">
+    <p style="margin:0 0 14px;font-size:11px;font-weight:700;color:#a0aec0;text-transform:uppercase;letter-spacing:1px;">Your Decision</p>
+    <table style="width:100%;border-collapse:separate;border-spacing:6px;">
+      <tr>
+        <td style="width:50%;">
+          <a href="${baseUrl}/resume?subscriberId=${sid}&decision=approve_guestlist"
+             style="display:block;background:#22c55e;color:white;padding:12px 10px;text-decoration:none;border-radius:8px;font-size:14px;font-weight:700;text-align:center;">
+            ✅ Approve Guestlist
+          </a>
+        </td>
+        <td style="width:50%;">
+          <a href="${baseUrl}/resume?subscriberId=${sid}&decision=push_table"
+             style="display:block;background:#a855f7;color:white;padding:12px 10px;text-decoration:none;border-radius:8px;font-size:14px;font-weight:700;text-align:center;">
+            🍾 Push to Table
+          </a>
+        </td>
+      </tr>
+      <tr>
+        <td>
+          <a href="${baseUrl}/resume?subscriberId=${sid}&decision=reject"
+             style="display:block;background:#ef4444;color:white;padding:12px 10px;text-decoration:none;border-radius:8px;font-size:14px;font-weight:700;text-align:center;">
+            ❌ Reject
+          </a>
+        </td>
+        <td>
+          <a href="${baseUrl}/resume?subscriberId=${sid}&decision=resume_ai"
+             style="display:block;background:#3b82f6;color:white;padding:12px 10px;text-decoration:none;border-radius:8px;font-size:14px;font-weight:700;text-align:center;">
+            🤖 Resume AI
+          </a>
+        </td>
+      </tr>
+      <tr>
+        <td colspan="2">
+          <a href="${baseUrl}/override?subscriberId=${sid}"
+             style="display:block;background:#f59e0b;color:white;padding:12px 10px;text-decoration:none;border-radius:8px;font-size:14px;font-weight:700;text-align:center;">
+            👤 Manual Override — I'll Handle This
+          </a>
+        </td>
+      </tr>
+    </table>
+    <p style="margin:14px 0 0;font-size:11px;color:#4a5568;text-align:center;">Reign Concierge Brain · ${new Date().toLocaleString('en-GB', { timeZone: 'Europe/London' })}</p>
+  </div>
+
 </div>`;
 
   return {
