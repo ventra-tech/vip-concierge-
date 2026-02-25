@@ -186,10 +186,27 @@ function extractNamesAndInstagram(text) {
   const names = [];
   const instagrams = [];
 
+  // ── 0. Normalise "@ handle" (space after @) → "@handle" ──
+  const normalised = text.replace(/@\s+(\w)/g, '@$1');
+
+  // ── 0b. Handle "Full name - X" / "Name - X" / "Insta - X" / "IG - X" patterns ──
+  const fullNameMatch = normalised.match(/(?:full\s*name|name)\s*[-:]\s*([A-Za-z]+([-'\s][A-Za-z]+)*)/i);
+  if (fullNameMatch) {
+    const n = fullNameMatch[1].trim();
+    if (n.length > 1 && !names.includes(n)) names.push(n);
+  }
+  const instaLabelMatch = normalised.match(/(?:insta(?:gram)?|ig)\s*[-:]\s*@?([\w.]+)/i);
+  if (instaLabelMatch) {
+    const handle = '@' + instaLabelMatch[1].toLowerCase();
+    if (!instagrams.includes(handle)) instagrams.push(handle);
+  }
+
   // ── 1. Extract @username handles ──
-  const igMatches = text.match(/@[\w.]+/g);
+  const igMatches = normalised.match(/@[\w.]+/g);
   if (igMatches) {
-    igMatches.forEach(handle => instagrams.push(handle.toLowerCase()));
+    igMatches.forEach(handle => {
+      if (!instagrams.includes(handle.toLowerCase())) instagrams.push(handle.toLowerCase());
+    });
   }
 
   // ── 2. Extract instagram.com profile URLs ──
@@ -207,7 +224,7 @@ function extractNamesAndInstagram(text) {
 
   // ── 3. Try comma-separated names ──
   // e.g. "alexa lewis, bree stewart, grace roggeman, ella ward"
-  const commaParts = text.split(',').map(p => p.trim()).filter(Boolean);
+  const commaParts = normalised.split(',').map(p => p.trim()).filter(Boolean);
   if (commaParts.length >= 2) {
     const nameParts = [];
     let allNames = true;
@@ -223,7 +240,7 @@ function extractNamesAndInstagram(text) {
       }
     }
     if (allNames && nameParts.length >= 2) {
-      nameParts.forEach(n => names.push(n));
+      nameParts.forEach(n => { if (!names.includes(n)) names.push(n); });
     }
   }
 
@@ -231,12 +248,14 @@ function extractNamesAndInstagram(text) {
   // Handles blocks like: "Hey,\nNames\nMaggie voisin\nIndianna Buckley"
   // and simple pairs: "Rachel Chilcott\nJamie-Lee Brackstone"
   if (names.length === 0) {
-    const lines = text.split(/\n/).map(l => l.trim()).filter(Boolean);
+    const lines = normalised.split(/\n/).map(l => l.trim()).filter(Boolean);
     for (const line of lines) {
       // Skip known header/footer lines
-      if (/^(hey,?|names?:?|instagrams?:?|ig:?|hi,?|hello,?)$/i.test(line)) continue;
+      if (/^(hey,?|names?:?|instagrams?:?|ig:?|hi,?|hello,?|ok,?)$/i.test(line)) continue;
       // Skip lines containing @ or instagram.com
       if (line.includes('@') || /instagram\.com/i.test(line)) continue;
+      // Skip lines that look like labels e.g. "Full name -" "Insta -"
+      if (/^(full\s*name|insta(?:gram)?|ig)\s*[-:]/i.test(line)) continue;
       // Skip lines that are clearly not names (long sentences, punctuation etc.)
       if (line.length > 60 || /[.!?]/.test(line)) continue;
       // Must look like a name: 2-3 words, letters + hyphens/apostrophes allowed, mixed or all-caps surnames OK
@@ -248,7 +267,7 @@ function extractNamesAndInstagram(text) {
 
   // ── 5. Try "my name is X" / "i'm X" patterns ──
   if (names.length === 0) {
-    const namedMatch = text.match(
+    const namedMatch = normalised.match(
       /(?:my name(?:'s| is)|name is|i'm|im|it's|its|i am)\s+([A-Za-z]+(?:\s+[A-Za-z]+){0,2})/i
     );
     if (namedMatch) {
@@ -259,13 +278,13 @@ function extractNamesAndInstagram(text) {
 
   // ── 6. Try "Full Name @handle" — name then handle on same line ──
   if (names.length === 0) {
-    const nameHandleMatch = text.match(/^([A-Za-z]+([-'][A-Za-z]+)?(?:\s+[A-Za-z]+([-'][A-Za-z]+)?){1,2})\s+@/i);
+    const nameHandleMatch = normalised.match(/^([A-Za-z]+([-'][A-Za-z]+)?(?:\s+[A-Za-z]+([-'][A-Za-z]+)?){1,2})\s+@/i);
     if (nameHandleMatch) names.push(nameHandleMatch[1].trim());
   }
 
   // ── 7. Bare "FirstName LastName" (capitalised, nothing else in message) ──
   if (names.length === 0 && instagrams.length === 0) {
-    const bareNameMatch = text.match(/^([A-Z][a-zA-Z]+([-'][A-Za-z]+)?(?:\s+[A-Z][a-zA-Z]+([-'][A-Za-z]+)?){1,2})$/);
+    const bareNameMatch = normalised.match(/^([A-Z][a-zA-Z]+([-'][A-Za-z]+)?(?:\s+[A-Z][a-zA-Z]+([-'][A-Za-z]+)?){1,2})$/);
     if (bareNameMatch) names.push(bareNameMatch[1].trim());
   }
 
@@ -309,6 +328,14 @@ function extractNightType(text) {
 
   // Tonight / today — use actual current day
   if (lower.includes('tonight') || lower.includes('today')) return detectNightType('tonight');
+
+  // Tomorrow / tmr / tmrw — check what day of the week tomorrow is
+  if (/\b(tomorrow|tmr|tmrw)\b/.test(lower)) {
+    const tomorrow = new Date();
+    tomorrow.setDate(tomorrow.getDate() + 1);
+    const d = tomorrow.getDay(); // 0=Sun,1=Mon,...,5=Fri,6=Sat
+    return (d === 5 || d === 6 || d === 0) ? 'weekend' : 'weekday';
+  }
 
   // Explicit weekend signals
   if (/\b(weekend|this weekend|next weekend|sat night|saturday night|friday night)\b/.test(lower)) {
