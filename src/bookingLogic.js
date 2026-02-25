@@ -72,6 +72,12 @@ function mergeRouterIntoState(state, routerOutput, intent) {
     updates.lead_type = 'table';
   }
 
+  // Males always go straight to table — guestlist is girls only
+  const currentGender = routerOutput.detectedGender || state.detected_gender;
+  if (currentGender === 'male' && (state.lead_type === 'unknown' || state.lead_type === null)) {
+    updates.lead_type = 'table';
+  }
+
   // Update group numbers if extracted
   if (routerOutput.groupSize !== null) updates.group_size = routerOutput.groupSize;
 
