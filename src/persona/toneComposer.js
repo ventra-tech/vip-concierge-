@@ -1,17 +1,10 @@
 /**
  * persona/toneComposer.js
- * The ONLY place the LLM generates free-form text.
- * Everything else in the system is deterministic.
- *
- * toneComposer receives:
- *   - The decided action (from bookingLogic)
- *   - The current state
- *   - Any template text to rephrase
- * And returns a final reply in Sanad's voice.
+ * LLM-first response composer. The LLM handles all natural conversation.
+ * Templates are only used for booking confirmations where exact data accuracy is required.
  */
 
 const { callLLM } = require('../llm/provider');
-const { getObjectionResponse, getBirthdayResponse, getTonightResponse } = require('../templates/objections');
 const {
   guestlistConfirmation,
   tableConfirmation,
@@ -19,7 +12,7 @@ const {
   pushTableAfterHandoff,
   rejectionMessage,
 } = require('../templates/confirmations');
-const { getTableMinimum } = require('../policy/reign');
+const { getTableMinimum, REIGN } = require('../policy/reign');
 
 // ─── BANNED PHRASES ───────────────────────────────────────────────────────────
 
@@ -49,112 +42,124 @@ function stripBannedPhrases(text) {
   return result.trim();
 }
 
-// ─── SANAD SYSTEM PROMPT ──────────────────────────────────────────────────────
+// ─── SYSTEM PROMPT ────────────────────────────────────────────────────────────
 
 function buildSystemPrompt(state) {
-  const tone = state.detected_gender === 'male'
-    ? 'Casual and confident. Use "bro", "dw", "ofc", "bet", "wagwan", "lk". Very short and direct. Single-word replies are fine: "Bet", "Yes bro", "Sorted".'
-    : state.detected_gender === 'female'
-      ? 'Charming and warm. Use "darling", "gorgeous", "girls". End messages with "x" or "c". E.g. "Perfect darling x", "No worries gorgeous x", "Amazing darling!"'
-      : 'Confident and premium. Keep it short and welcoming. Use 😏 🥂 👀';
+  const gender = state.detected_gender || 'unknown';
 
-  return `You are Sanad — a London nightlife host. Speak in first person ALWAYS. You manage Instagram DMs for Reign, a premium Mayfair nightclub.
+  const tone = gender === 'male'
+    ? `Casual and confident lad. Use "bro", "dw", "ofc", "bet", "lk", "yo". Very short and direct. Single-word replies are fine e.g. "Bet", "Yes bro", "Sorted". Never use "wagwan".`
+    : gender === 'female'
+      ? `Warm, charming and friendly. Use "darling", "gorgeous", "girls". End most messages with "x". E.g. "Perfect darling x", "No worries gorgeous x", "Amazing darling 🥂"`
+      : `Confident and premium. Short and welcoming.`;
+
+  return `You are Sanad — a London nightlife host who manages bookings for Reign, a premium Mayfair nightclub. You speak in first person always, texting guests on Instagram DMs.
 
 TONE: ${tone}
 
-RULES:
-1-2 lines max. Never longer.
-1-2 emojis max. Only use: ❤️‍🔥 🕺 🥂 👀 🫠 🍾 📱 😏 😭
-Never say you are AI, an assistant, or mention Sanad in third person
-Never say "unfortunately", "kindly", "please note", "dear customer"
-Never use bullet points or dashes in replies
-Sound natural and human — like a real host texting on Instagram
-Use: "lmk", "rn", "ofc", "tbh", "lk", "tn"
-Keep it moving — qualify, confirm, done`;
+VENUE KNOWLEDGE:
+- Club: Reign (also called "London Reign")
+- Address: 215, The London Reign, 217 Piccadilly, London W1J 9HN (nearest tube: Piccadilly Circus)
+- Entry fee: £20 for guestlist
+- Arrival: Must arrive by 11pm (11:30pm–midnight at the latest)
+- Dress code girls: elegant & heels
+- Dress code guys: smart wear
+- ID: Physical ID required. Photo of passport on phone also works.
+- Age: 18+ strictly
+- At the door say: "Sanad guestlist"
+- Drinks: Complimentary drinks included on the VIP table/guestlist
+- Vibe: Premium, exclusive, Mayfair crowd, live shows
+
+GUESTLIST RULES:
+- Guestlist is for GIRLS ONLY (free entry with complimentary drinks)
+- Guys do NOT get on the guestlist — they book tables
+- To book girls on guestlist: need full names + Instagram handles for each person
+- Guys asking about guestlist: redirect them to table bookings naturally
+
+TABLE RULES:
+- Tables available for any group
+- Need: full name for booking + phone number (to add to gc with the owner)
+- Minimum spends apply depending on group size and night
+
+CONVERSATION RULES:
+- Keep replies to 1-2 lines MAX
+- Use max 1-2 emojis. Only use: ❤️‍🔥 🕺 🥂 👀 🫠 🍾 📱 😏 😭
+- NEVER use bullet points or dashes — write naturally like a text
+- NEVER reveal you are AI, a bot, or an assistant
+- NEVER mention Sanad in third person — you ARE Sanad
+- NEVER say "unfortunately", "kindly", "please note", "dear customer"
+- Sound like a real person texting — casual, warm, human
+- Use natural abbreviations: "lmk", "rn", "ofc", "tbh", "lk", "tn", "dw", "btw"
+- If someone seems confused or asks why — explain naturally, don't just repeat the question
+- Keep things moving — qualify, confirm, done`;
 }
 
-// ─── ASK QUESTION PROMPTS ─────────────────────────────────────────────────────
+// ─── INSTRUCTION BUILDER ──────────────────────────────────────────────────────
+// Tells the LLM exactly what it needs to do next, in plain English.
 
-const QUESTION_PROMPTS = {
-  lead_type: (state) => state.detected_gender === 'male'
-    ? `Yo bro you looking to book a table?`
-    : `Heyy darling 🥂 You looking for guestlist or a table?`,
+function buildInstruction(action, missingField, state, tableMinimum) {
+  const night = state.night_type === 'weekend' ? 'this weekend'
+    : state.night_type === 'weekday' ? 'this weekday'
+    : state.night_type || 'tonight';
 
-  group_composition: (state) => state.detected_gender === 'male'
-    ? `Yes ofc bro 😏 How many guys and how many girls?`
-    : `Of course 🥂 How many of you and is it all girls?`,
+  const isMale = state.detected_gender === 'male';
 
-  guys_count: () => `How many guys in the group?`,
-  girls_count: () => `And how many girls?`,
+  switch (action) {
+    case 'rapport':
+      return isMale
+        ? `New guest has reached out. Greet them and ask what you can sort for them — they're likely looking to book a table.`
+        : `New guest has reached out. Greet them warmly and find out if they want guestlist or a table.`;
 
-  night_type: (state) => state.detected_gender === 'male'
-    ? `When are you planning on coming to Reign bro?`
-    : `When are you planning on coming to Reign darling? x`,
+    case 'ask_question':
+      switch (missingField) {
+        case 'lead_type':
+          return isMale
+            ? `Ask if they want to book a table.`
+            : `Ask if they want guestlist or a table.`;
+        case 'night_type':
+          return `Ask when they're planning to come to Reign.`;
+        case 'group_size':
+          return `Ask how many people are in their group.`;
+        case 'group_composition':
+          return `Ask how many guys and how many girls are in the group.`;
+        case 'guys_count':
+          return `Ask how many guys are in the group.`;
+        case 'girls_count':
+          return `Ask how many girls are in the group.`;
+        case 'full_names':
+          return `They're interested in the guestlist for ${night}. Ask for everyone's full names and Instagram handles so you can book them on your guestlist.`;
+        case 'instagram_handles':
+          return `You have their names but still need their Instagram handles. Ask for those — it's needed to add them to the guestlist.`;
+        case 'full_name_for_table': {
+          const tMin = tableMinimum || (state.group_size ? getTableMinimum(state.group_size, state.night_type) : null);
+          const minText = tMin ? ` Minimum spend is ${tMin.label}.` : '';
+          return `They want to book a table.${minText} Ask for their full name for the booking and their phone number.`;
+        }
+        case 'phone_number':
+          return `You have their name but still need their phone number to add them to the group chat with the owner.`;
+        default:
+          return `Continue the conversation naturally and gather the missing information: ${missingField}.`;
+      }
 
-  group_size: (state) => state.detected_gender === 'male'
-    ? `How many of you bro? 🍾`
-    : `How many of you darling? x`,
+    case 'answer_question':
+      return `The guest has a question about the venue. Answer it accurately based on your venue knowledge. Keep it short and natural.`;
 
-  full_names: (state) => {
-    const night = state.night_type === 'weekend' ? 'this weekend' : state.night_type === 'weekday' ? 'this weekday' : 'tonight';
-    return state.detected_gender === 'female'
-      ? `Perfect darling x What I will need is full names with instagrams and I'll book you girls on my guestlist for ${night} x`
-      : `Perfect bro Send me full names with instagrams and I'll put you all on my guestlist ❤️‍🔥`;
-  },
+    case 'objection':
+      return `The guest has an objection or concern. Address it naturally in your own voice — be reassuring, keep it real, keep it short.`;
 
-  instagram_handles: () => `With instagrams as well plz x`,
+    case 'birthday_acknowledgement':
+      return `The guest mentioned a birthday or special occasion. Respond with genuine excitement — make them feel special.`;
 
-  full_name_for_table: (state) => {
-    const tableMin = state.group_size ? getTableMinimum(state.group_size, state.night_type) : null;
-    const minText = tableMin ? ` Min spending ${tableMin.label}.` : '';
-    return `Easy ❤️ I can do a table for you.${minText} Send me your full name for the booking and your number as well`;
-  },
+    case 'holding':
+      return `Let the guest know you're sorting it for them right now. Keep it super short and natural.`;
 
-  phone_number: (state) => state.detected_gender === 'male'
-    ? `And send me your number as well bro I'll add you to a gc with the owner`
-    : `And send me your number as well darling I'll add you to a gc with the owner x`,
-};
-
-// ─── RAPPORT OPENERS ──────────────────────────────────────────────────────────
-
-const RAPPORT_OPENERS = {
-  male: [
-    `Yo bro what you looking for tonight?`,
-    `Yo bro tonight is active 🕺 You looking to book a table?`,
-    `Hey bro what can I sort for you?`,
-  ],
-  female: [
-    `Heyy darling! Amazing 🥂 What can I sort for you?`,
-    `Hey gorgeous what are you looking for tonight? 😏`,
-    `Heyy darling 🥂 Guestlist or something more VIP?`,
-  ],
-  neutral: [
-    `Hey 😏 What can I sort for you?`,
-    `What you looking for tonight? 🥂`,
-    `Hey what are you after — guestlist or a table? 😏`,
-  ],
-};
-
-function getRapportOpener(gender) {
-  const list = RAPPORT_OPENERS[gender] || RAPPORT_OPENERS.neutral;
-  return list[Math.floor(Math.random() * list.length)];
+    default:
+      return `Continue the conversation naturally based on the context.`;
+  }
 }
 
 // ─── MAIN COMPOSE FUNCTION ────────────────────────────────────────────────────
 
-/**
- * Compose the final reply text based on action and state.
- * Uses templates where possible, LLM only for free-form phrasing.
- *
- * @param {object} params
- * @param {string} params.action
- * @param {import('../state').ConversationState} params.state
- * @param {string|null} params.missingField
- * @param {object|null} params.tableMinimum
- * @param {object|null} params.eligibilityResult
- * @param {string} params.rawUserMessage
- * @returns {Promise<string>}
- */
 async function composeReply({
   action,
   state,
@@ -163,17 +168,8 @@ async function composeReply({
   eligibilityResult,
   rawUserMessage,
 }) {
-  const gender = state.detected_gender || 'neutral';
-
-  // ── Deterministic templates first ──
-
+  // ── Templates ONLY for booking confirmations — these need precise data ──
   switch (action) {
-    case 'answer_question': {
-      const faqReply = _answerVenueQuestion(rawUserMessage, gender);
-      if (faqReply) return faqReply;
-      break; // Fall through to LLM for unknown questions
-    }
-
     case 'confirm':
       if (state.lead_type === 'guestlist') return guestlistConfirmation(state);
       if (state.lead_type === 'table') return tableConfirmation(state, tableMinimum);
@@ -189,111 +185,34 @@ async function composeReply({
 
     case 'reject':
       return rejectionMessage(state);
-
-    case 'birthday_acknowledgement':
-      return getBirthdayResponse(gender);
-
-    case 'rapport':
-      return getRapportOpener(gender);
-
-    case 'objection': {
-      const objectionReply = getObjectionResponse(rawUserMessage, gender);
-      if (objectionReply) return objectionReply;
-      break; // Fall through to LLM
-    }
-
-    case 'ask_question': {
-      // If the user seems confused or is questioning why we need this — use LLM to explain naturally
-      const isConfused = /\b(wdym|what do you mean|why|what for|why do you need|huh|what|don't understand|dont understand)\b/i.test(rawUserMessage);
-      if (!isConfused) {
-        const promptFn = QUESTION_PROMPTS[missingField];
-        if (promptFn) return promptFn(state);
-      }
-      break; // Fall through to LLM
-    }
   }
 
-  // ── LLM fallback for unhandled cases ──
+  // ── Everything else — LLM with full conversation history ──
   return _llmCompose({ action, state, missingField, tableMinimum, rawUserMessage });
 }
 
-// ─── VENUE FAQ ANSWERS ────────────────────────────────────────────────────────
-
-function _answerVenueQuestion(rawUserMessage, gender) {
-  const lower = rawUserMessage.toLowerCase();
-  const isMale = gender === 'male';
-
-  if (lower.includes('dress code') || lower.includes('wear') || lower.includes('outfit') || lower.includes('attire')) {
-    return isMale
-      ? `Dress code is smart wear bro 👀 Keep it clean`
-      : `Dress code is elegant and heels darling 👀 Keep it classy 🥂`;
-  }
-
-  if (lower.includes('entry') || lower.includes('how much') || lower.includes('price') || lower.includes('cost') || lower.includes('free')) {
-    return isMale
-      ? `Entry is £${require('../policy/reign').REIGN.entry_fee} bro. Once you're inside you're good 🕺`
-      : `Entry is £${require('../policy/reign').REIGN.entry_fee} darling. Once you're inside I've got you 🥂`;
-  }
-
-  if (lower.includes('time') || lower.includes('when') || lower.includes('arrive') || lower.includes('arrival')) {
-    return isMale
-      ? `Get there by 11pm bro 👀 Don't leave it too late`
-      : `Get there by 11pm darling 👀 Ideal is 11:30pm at the latest`;
-  }
-
-  if (lower.includes('address') || lower.includes('where') || lower.includes('location')) {
-    return `215 Piccadilly, London 📱 Right in the heart of Mayfair`;
-  }
-
-  if (lower.includes('id') || lower.includes('identification') || lower.includes('passport')) {
-    return isMale
-      ? `Physical ID is required bro 👀 Picture of your passport on your phone works too`
-      : `Physical ID is required darling 👀 Picture of your passport on your phone works too`;
-  }
-
-  if (lower.includes('age') || lower.includes('how old') || lower.includes('18')) {
-    return isMale
-      ? `18+ strictly bro 👀 Bring valid ID or you won't get in`
-      : `18+ strictly darling 👀 Bring valid ID they're strict on the door`;
-  }
-
-  if (lower.includes('tonight') || lower.includes('good tonight') || lower.includes('worth') || lower.includes('active')) {
-    return isMale
-      ? `Yes ofc bro tonight is active 🕺 How many of you?`
-      : `Yes ofc darling tonight is perfect 😏 How many of you?`;
-  }
-
-  if (lower.includes('parking') || lower.includes('uber') || lower.includes('transport') || lower.includes('tube')) {
-    return `Nearest tube is Piccadilly Circus 📱 Uber drops right outside`;
-  }
-
-  // Generic question — let LLM handle it
-  return null;
-}
+// ─── LLM COMPOSER ────────────────────────────────────────────────────────────
 
 async function _llmCompose({ action, state, missingField, tableMinimum, rawUserMessage }) {
   const systemPrompt = buildSystemPrompt(state);
+  const instruction = buildInstruction(action, missingField, state, tableMinimum);
 
-  const contextNote = [
-    `Action needed: ${action}`,
-    missingField ? `Still need from guest: ${missingField}` : null,
-    tableMinimum ? `Table minimum: ${tableMinimum.label}` : null,
-  ].filter(Boolean).join('\n');
+  const fullSystem = `${systemPrompt}
 
-  // Build messages with full conversation history for context
-  const messages = [{ role: 'system', content: systemPrompt + '\n\n' + contextNote }];
+YOUR NEXT TASK: ${instruction}`;
 
-  // Add conversation history so LLM understands what was already said
+  // Build message thread with conversation history
+  const messages = [{ role: 'system', content: fullSystem }];
+
   const history = state.conversation_history || [];
   if (history.length > 0) {
-    // Include last 10 turns max to keep token usage reasonable
-    const recent = history.slice(-10);
-    recent.forEach(msg => messages.push({ role: msg.role, content: msg.content }));
+    // Last 12 turns for context (6 back-and-forths)
+    history.slice(-12).forEach(msg => messages.push({ role: msg.role, content: msg.content }));
   } else {
     messages.push({ role: 'user', content: rawUserMessage });
   }
 
-  const raw = await callLLM(messages, { maxTokens: 150, temperature: 0.75 });
+  const raw = await callLLM(messages, { maxTokens: 150, temperature: 0.8 });
   return stripBannedPhrases(raw);
 }
 
