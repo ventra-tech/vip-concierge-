@@ -100,12 +100,8 @@ function detectGender({ messageText = '', username = '', firstName = '', existin
   const gap = Math.abs(femaleScore - maleScore);
   const newDetection = gap < 2 ? 'neutral' : (femaleScore > maleScore ? 'female' : 'male');
 
-  // If we have an existing confident detection, keep it UNLESS new message
-  // contradicts it very strongly (gap >= 4) — e.g. user explicitly says "all girls"
+  // Once gender is locked as male or female — never change it mid-conversation
   if (existingGender && existingGender !== 'neutral') {
-    if (newDetection !== 'neutral' && newDetection !== existingGender && gap >= 4) {
-      return newDetection; // Strong override — e.g. "all girls" overrides previous 'male'
-    }
     return existingGender;
   }
 
