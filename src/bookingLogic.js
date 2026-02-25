@@ -270,8 +270,8 @@ function decideNextAction(state, routerOutput) {
 
 function _resolveNightType(state) {
   if (state.night_type !== null) return state; // already known
-  if ((state.night_type_asks || 0) >= 2) {
-    // Give up asking — default to weekend (higher minimum, safer for pricing)
+  if ((state.night_type_asks || 0) >= 1) {
+    // Give up asking after 1 attempt — default to weekend
     return updateState(state, { night_type: 'weekend', night_type_asks: (state.night_type_asks || 0) + 1 });
   }
   return null; // still need to ask
