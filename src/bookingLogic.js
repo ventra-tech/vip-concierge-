@@ -72,8 +72,15 @@ function mergeRouterIntoState(state, routerOutput, intent) {
     updates.lead_type = 'table';
   }
 
-  // Males always go straight to table — guestlist is girls only
+  // If lead is guestlist and person is female — assume all girls group (guestlist is girls only)
+  const mergedLeadType = updates.lead_type || state.lead_type;
   const currentGender = routerOutput.detectedGender || state.detected_gender;
+  if (mergedLeadType === 'guestlist' && currentGender === 'female' && state.guys === null) {
+    updates.guys = 0;
+    updates.gender_mix = 'girls';
+  }
+
+  // Males always go straight to table — guestlist is girls only
   if (currentGender === 'male' && (state.lead_type === 'unknown' || state.lead_type === null)) {
     updates.lead_type = 'table';
   }
