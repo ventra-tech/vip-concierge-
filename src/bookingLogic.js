@@ -30,9 +30,9 @@ const { updateState } = require('./state');
  */
 function getNextMissingField(state) {
   if (state.lead_type === 'guestlist') {
-    if (state.gender_mix === 'unknown') return 'group_composition';
-    if (state.gender_mix !== 'girls' && state.guys === null) return 'guys_count';
-    if (state.girls === null) return 'girls_count';
+    // Guestlist is always girls only — skip all group composition checks
+    const girlsKnown = state.girls !== null || state.group_size !== null;
+    if (!girlsKnown) return 'group_size';
     if (state.night_type === null) return 'night_type';
     if (state.collected_names.length === 0) return 'full_names';
     if (state.collected_instagrams.length === 0) return 'instagram_handles';
@@ -280,55 +280,24 @@ function _resolveNightType(state) {
 // ─── GUESTLIST FLOW ───────────────────────────────────────────────────────────
 
 function _handleGuestlistFlow(state) {
-  // Girls only — simplified flow
-  if (state.gender_mix === 'girls') {
-    let s = state;
-    // Anti-loop: if about to ask night_type again, default it
-    if (getNextMissingField(s) === 'night_type') {
-      const resolved = _resolveNightType(s);
-      if (resolved) s = resolved;
-      else s = updateState(s, { night_type_asks: (s.night_type_asks || 0) + 1 });
-    }
-    const missingField = getNextMissingField(s);
-    if (missingField) {
-      return { action: 'ask_question', updatedState: s, missingField, tableMinimum: null, eligibilityResult: null };
-    }
-    // All info collected — confirm
-    const confirmed = updateState(state, { status: 'confirmed' });
-    return { action: 'confirm', updatedState: confirmed, missingField: null, tableMinimum: null, eligibilityResult: { decision: 'approved', reason: 'girls_only' } };
+  // Guestlist is always girls only — force this in state
+  let s = updateState(state, { guys: 0, gender_mix: 'girls' });
+
+  // Anti-loop: if about to ask night_type again, default it
+  if (getNextMissingField(s) === 'night_type') {
+    const resolved = _resolveNightType(s);
+    if (resolved) s = resolved;
+    else s = updateState(s, { night_type_asks: (s.night_type_asks || 0) + 1 });
   }
 
-  // Need to know guys count first
-  if (state.guys === null) {
-    return { action: 'ask_question', updatedState: state, missingField: 'group_composition', tableMinimum: null, eligibilityResult: null };
-  }
-
-  // Evaluate eligibility
-  const eligibilityResult = evaluateGuestlistEligibility({
-    guys: state.guys || 0,
-    girls: state.girls || 0,
-    nightType: state.night_type,
-  });
-
-  if (eligibilityResult.decision === 'push_table') {
-    const tableMin = getTableMinimum(state.group_size || state.guys, state.night_type);
-    const updated = updateState(state, { lead_type: 'table' });
-    return { action: 'push_table', updatedState: updated, missingField: null, tableMinimum: tableMin, eligibilityResult };
-  }
-
-  if (eligibilityResult.decision === 'handoff') {
-    const updated = updateState(state, { status: 'handoff', handoff_reason: eligibilityResult.reason, paused: true });
-    return { action: 'handoff', updatedState: updated, missingField: null, tableMinimum: null, eligibilityResult };
-  }
-
-  // Approved — collect remaining details
-  const missingField = getNextMissingField(state);
+  const missingField = getNextMissingField(s);
   if (missingField) {
-    return { action: 'ask_question', updatedState: state, missingField, tableMinimum: null, eligibilityResult };
+    return { action: 'ask_question', updatedState: s, missingField, tableMinimum: null, eligibilityResult: null };
   }
 
-  const confirmed = updateState(state, { status: 'confirmed' });
-  return { action: 'confirm', updatedState: confirmed, missingField: null, tableMinimum: null, eligibilityResult };
+  // All info collected — send confirmation
+  const confirmed = updateState(s, { status: 'confirmed' });
+  return { action: 'confirm', updatedState: confirmed, missingField: null, tableMinimum: null, eligibilityResult: { decision: 'approved', reason: 'girls_only' } };
 }
 
 // ─── TABLE FLOW ───────────────────────────────────────────────────────────────
