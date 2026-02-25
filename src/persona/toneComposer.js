@@ -88,8 +88,8 @@ const QUESTION_PROMPTS = {
   girls_count: () => `And how many girls?`,
 
   night_type: (state) => state.detected_gender === 'male'
-    ? `When are you planning on coming bro?`
-    : `When are you planning on coming darling? x`,
+    ? `When are you planning on coming to Reign bro?`
+    : `When are you planning on coming to Reign darling? x`,
 
   group_size: (state) => state.detected_gender === 'male'
     ? `How many of you and what night you looking at bro? 🍾`
