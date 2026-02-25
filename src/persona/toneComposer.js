@@ -119,9 +119,9 @@ const QUESTION_PROMPTS = {
 
 const RAPPORT_OPENERS = {
   male: [
-    `Wagwan bro 😏 What you looking for tonight?`,
-    `Yo bro tonight is active 🕺 Guestlist or table?`,
-    `Hey bro what can I sort for you? 😏`,
+    `Yo bro what you looking for tonight?`,
+    `Yo bro tonight is active 🕺 You looking to book a table?`,
+    `Hey bro what can I sort for you?`,
   ],
   female: [
     `Heyy darling! Amazing 🥂 What can I sort for you?`,
