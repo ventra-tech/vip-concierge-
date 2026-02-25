@@ -143,14 +143,20 @@ function extractNumbers(text) {
     groupSize = parseInt(usMatch[1], 10);
   }
 
-  // Pattern: standalone number when context is clear e.g. "4" / "just 4" / "4 of us"
+  // Pattern: standalone number with common prefixes — "4" / "just 4" / "only 2" / "like 3"
   if (!groupSize) {
-    const standaloneMatch = lower.match(/^(?:just\s+)?(\d+)(?:\s+of\s+us)?$/);
+    const standaloneMatch = lower.match(/^(?:just\s+|only\s+|like\s+|about\s+|maybe\s+|probably\s+)?(\d+)(?:\s+of\s+us)?$/);
     if (standaloneMatch) groupSize = parseInt(standaloneMatch[1], 10);
   }
 
-  // Pattern: solo — "just me", "it's just me", "solo"
-  if (!groupSize && (lower.includes('just me') || lower.includes('solo') || lower.includes('only me'))) {
+  // Pattern: "only X", "just X", "there's X", "its X" anywhere in message
+  if (!groupSize) {
+    const naturalMatch = lower.match(/(?:only|just|its|it's|theres|there's|around|like|about)\s+(\d+)(?:\s+of\s+us)?/);
+    if (naturalMatch) groupSize = parseInt(naturalMatch[1], 10);
+  }
+
+  // Pattern: solo — "just me", "it's just me", "solo", "only me"
+  if (!groupSize && (lower.includes('just me') || lower.includes('solo') || lower.includes('only me') || lower.match(/^(1|one)$/))) {
     groupSize = 1;
   }
 
