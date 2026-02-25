@@ -203,8 +203,12 @@ async function composeReply({
     }
 
     case 'ask_question': {
-      const promptFn = QUESTION_PROMPTS[missingField];
-      if (promptFn) return promptFn(state);
+      // If the user seems confused or is questioning why we need this — use LLM to explain naturally
+      const isConfused = /\b(wdym|what do you mean|why|what for|why do you need|huh|what|don't understand|dont understand)\b/i.test(rawUserMessage);
+      if (!isConfused) {
+        const promptFn = QUESTION_PROMPTS[missingField];
+        if (promptFn) return promptFn(state);
+      }
       break; // Fall through to LLM
     }
   }
@@ -270,20 +274,24 @@ function _answerVenueQuestion(rawUserMessage, gender) {
 async function _llmCompose({ action, state, missingField, tableMinimum, rawUserMessage }) {
   const systemPrompt = buildSystemPrompt(state);
 
-  const contextLines = [
+  const contextNote = [
     `Action needed: ${action}`,
-    missingField ? `Missing info: ${missingField}` : null,
+    missingField ? `Still need from guest: ${missingField}` : null,
     tableMinimum ? `Table minimum: ${tableMinimum.label}` : null,
-    `Lead type: ${state.lead_type}`,
-    `Group: ${state.guys ?? '?'} guys, ${state.girls ?? '?'} girls`,
-    `Night: ${state.night_type || 'unknown'}`,
-    `Guest message: "${rawUserMessage}"`,
   ].filter(Boolean).join('\n');
 
-  const messages = [
-    { role: 'system', content: systemPrompt },
-    { role: 'user', content: contextLines },
-  ];
+  // Build messages with full conversation history for context
+  const messages = [{ role: 'system', content: systemPrompt + '\n\n' + contextNote }];
+
+  // Add conversation history so LLM understands what was already said
+  const history = state.conversation_history || [];
+  if (history.length > 0) {
+    // Include last 10 turns max to keep token usage reasonable
+    const recent = history.slice(-10);
+    recent.forEach(msg => messages.push({ role: msg.role, content: msg.content }));
+  } else {
+    messages.push({ role: 'user', content: rawUserMessage });
+  }
 
   const raw = await callLLM(messages, { maxTokens: 150, temperature: 0.75 });
   return stripBannedPhrases(raw);
