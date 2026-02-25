@@ -88,11 +88,21 @@ async function processMessage(manyChatBody) {
   // ── 6. Classify message ──
   const routerOutput = await classifyMessage(manyChatBody, messageText);
 
+  // ── DEBUG LOGGING ──
+  console.log('=== DEBUG ===');
+  console.log('MSG:', JSON.stringify(messageText));
+  console.log('EXTRACTED names:', routerOutput.names, '| instagrams:', routerOutput.instagrams, '| groupSize:', routerOutput.groupSize, '| nightType:', routerOutput.nightType);
+  console.log('STATE BEFORE: lead_type:', state.lead_type, '| gender_mix:', state.gender_mix, '| girls:', state.girls, '| night_type:', state.night_type, '| collected_names:', state.collected_names, '| collected_instagrams:', state.collected_instagrams);
+
   // ── 7. Decide next action ──
   const { action, updatedState, missingField, tableMinimum, eligibilityResult } =
     decideNextAction(state, routerOutput);
 
   state = updatedState;
+
+  console.log('ACTION:', action, '| missingField:', missingField);
+  console.log('STATE AFTER: gender_mix:', state.gender_mix, '| girls:', state.girls, '| night_type:', state.night_type, '| collected_names:', state.collected_names, '| collected_instagrams:', state.collected_instagrams);
+  console.log('=============');
 
   // ── 8. Log message received ──
   logMessageReceived(state, routerOutput.intent);
