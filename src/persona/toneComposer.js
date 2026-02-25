@@ -92,8 +92,8 @@ const QUESTION_PROMPTS = {
     : `When are you planning on coming to Reign darling? x`,
 
   group_size: (state) => state.detected_gender === 'male'
-    ? `How many of you and what night you looking at bro? 🍾`
-    : `How many of you and what night are you thinking darling?`,
+    ? `How many of you bro? 🍾`
+    : `How many of you darling? x`,
 
   full_names: (state) => {
     const night = state.night_type === 'weekend' ? 'this weekend' : state.night_type === 'weekday' ? 'this weekday' : 'tonight';
