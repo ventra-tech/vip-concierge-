@@ -209,13 +209,13 @@ function extractNamesAndInstagram(text) {
     });
   }
 
-  // ── 2. Extract instagram.com profile URLs ──
-  const igUrlMatches = text.match(/(?:https?:\/\/)?(?:www\.)?instagram\.com\/([A-Za-z0-9._]+)/g);
+  // ── 2. Extract instagram.com profile URLs (handles igsh= share links too) ──
+  const igUrlMatches = normalised.match(/(?:https?:\/\/)?(?:www\.)?instagram\.com\/([A-Za-z0-9._]+)/gi);
   if (igUrlMatches) {
     igUrlMatches.forEach(url => {
-      const match = url.match(/instagram\.com\/([A-Za-z0-9._]+)/);
+      const match = url.match(/instagram\.com\/([A-Za-z0-9._]+)/i);
       // Exclude path segments like /p/ /reel/ /stories/
-      if (match && match[1] && !['p', 'reel', 'stories', 'explore'].includes(match[1])) {
+      if (match && match[1] && !['p', 'reel', 'stories', 'explore', 'tv'].includes(match[1].toLowerCase())) {
         const handle = '@' + match[1].toLowerCase();
         if (!instagrams.includes(handle)) instagrams.push(handle);
       }
@@ -245,22 +245,25 @@ function extractNamesAndInstagram(text) {
   }
 
   // ── 4. Process each line — extract name, @handle, or both ──
-  // This handles ALL formats: "Name @handle", "Name", "@handle", mixed blocks
+  // Handles: "Name @handle", "Name", "@handle", instagram.com links, mixed blocks
   const SKIP_LINES = /^(hey,?|names?:?|instagrams?:?|ig:?|hi,?|hello,?|ok,?|sure,?|here,?|and,?|also,?)$/i;
   const LABEL_LINES = /^(full\s*name|insta(?:gram)?|ig)\s*[-:]/i;
   const NAME_RE = /^[A-Za-z]+([-'][A-Za-z]+)?(\s+[A-Za-z]+([-'][A-Za-z]+)?){1,2}$/;
+  const URL_RE = /(?:https?:\/\/)?(?:www\.)?instagram\.com\/\S*/gi;
 
   const lines = normalised.split(/\n/).map(l => l.trim()).filter(Boolean);
   for (const line of lines) {
     if (SKIP_LINES.test(line)) continue;
     if (LABEL_LINES.test(line)) continue;
-    if (line.length > 80 || /[.!?]/.test(line)) continue;
 
-    // Strip any @handles and instagram URLs from the line to get the name portion
+    // Strip URLs and @handles first, then check what's left for a name
     const namePart = line
+      .replace(URL_RE, '')
       .replace(/@[\w.]+/g, '')
-      .replace(/(?:https?:\/\/)?(?:www\.)?instagram\.com\/\S+/gi, '')
       .trim();
+
+    // Skip if remaining text is clearly a sentence (has ! or ? or is very long)
+    if (namePart.length > 60 || /[!?]/.test(namePart)) continue;
 
     // If what's left looks like a name — extract it
     if (namePart && NAME_RE.test(namePart) && !names.includes(namePart)) {
