@@ -77,8 +77,8 @@ Keep it moving — qualify, confirm, done`;
 
 const QUESTION_PROMPTS = {
   lead_type: (state) => state.detected_gender === 'male'
-    ? `What you looking for bro — guestlist or a table? 😏`
-    : `What you looking for — guestlist or a table? 😏`,
+    ? `Wagwan bro 😏 You looking for guestlist or a table?`
+    : `Heyy darling 🥂 You looking for guestlist or a table?`,
 
   group_composition: (state) => state.detected_gender === 'male'
     ? `Yes ofc bro 😏 How many guys and how many girls?`
