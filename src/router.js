@@ -244,24 +244,27 @@ function extractNamesAndInstagram(text) {
     }
   }
 
-  // ── 4. Try multi-line names ──
-  // Handles blocks like: "Hey,\nNames\nMaggie voisin\nIndianna Buckley"
-  // and simple pairs: "Rachel Chilcott\nJamie-Lee Brackstone"
-  if (names.length === 0) {
-    const lines = normalised.split(/\n/).map(l => l.trim()).filter(Boolean);
-    for (const line of lines) {
-      // Skip known header/footer lines
-      if (/^(hey,?|names?:?|instagrams?:?|ig:?|hi,?|hello,?|ok,?)$/i.test(line)) continue;
-      // Skip lines containing @ or instagram.com
-      if (line.includes('@') || /instagram\.com/i.test(line)) continue;
-      // Skip lines that look like labels e.g. "Full name -" "Insta -"
-      if (/^(full\s*name|insta(?:gram)?|ig)\s*[-:]/i.test(line)) continue;
-      // Skip lines that are clearly not names (long sentences, punctuation etc.)
-      if (line.length > 60 || /[.!?]/.test(line)) continue;
-      // Must look like a name: 2-3 words, letters + hyphens/apostrophes allowed, mixed or all-caps surnames OK
-      if (/^[A-Za-z]+([-'][A-Za-z]+)?(\s+[A-Za-z]+([-'][A-Za-z]+)?){1,2}$/.test(line)) {
-        names.push(line);
-      }
+  // ── 4. Process each line — extract name, @handle, or both ──
+  // This handles ALL formats: "Name @handle", "Name", "@handle", mixed blocks
+  const SKIP_LINES = /^(hey,?|names?:?|instagrams?:?|ig:?|hi,?|hello,?|ok,?|sure,?|here,?|and,?|also,?)$/i;
+  const LABEL_LINES = /^(full\s*name|insta(?:gram)?|ig)\s*[-:]/i;
+  const NAME_RE = /^[A-Za-z]+([-'][A-Za-z]+)?(\s+[A-Za-z]+([-'][A-Za-z]+)?){1,2}$/;
+
+  const lines = normalised.split(/\n/).map(l => l.trim()).filter(Boolean);
+  for (const line of lines) {
+    if (SKIP_LINES.test(line)) continue;
+    if (LABEL_LINES.test(line)) continue;
+    if (line.length > 80 || /[.!?]/.test(line)) continue;
+
+    // Strip any @handles and instagram URLs from the line to get the name portion
+    const namePart = line
+      .replace(/@[\w.]+/g, '')
+      .replace(/(?:https?:\/\/)?(?:www\.)?instagram\.com\/\S+/gi, '')
+      .trim();
+
+    // If what's left looks like a name — extract it
+    if (namePart && NAME_RE.test(namePart) && !names.includes(namePart)) {
+      names.push(namePart);
     }
   }
 
@@ -272,19 +275,13 @@ function extractNamesAndInstagram(text) {
     );
     if (namedMatch) {
       const cleaned = namedMatch[1].trim();
-      if (cleaned.length > 1) names.push(cleaned);
+      if (cleaned.length > 1 && !names.includes(cleaned)) names.push(cleaned);
     }
   }
 
-  // ── 6. Try "Full Name @handle" — name then handle on same line ──
-  if (names.length === 0) {
-    const nameHandleMatch = normalised.match(/^([A-Za-z]+([-'][A-Za-z]+)?(?:\s+[A-Za-z]+([-'][A-Za-z]+)?){1,2})\s+@/i);
-    if (nameHandleMatch) names.push(nameHandleMatch[1].trim());
-  }
-
-  // ── 7. Bare "FirstName LastName" (capitalised, nothing else in message) ──
+  // ── 6. Bare "FirstName LastName" (single line, no other content) ──
   if (names.length === 0 && instagrams.length === 0) {
-    const bareNameMatch = normalised.match(/^([A-Z][a-zA-Z]+([-'][A-Za-z]+)?(?:\s+[A-Z][a-zA-Z]+([-'][A-Za-z]+)?){1,2})$/);
+    const bareNameMatch = normalised.trim().match(/^([A-Z][a-zA-Z]+([-'][A-Za-z]+)?(?:\s+[A-Z]?[a-zA-Z]+([-'][A-Za-z]+)?){1,2})$/);
     if (bareNameMatch) names.push(bareNameMatch[1].trim());
   }
 
