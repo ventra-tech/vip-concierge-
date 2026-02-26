@@ -168,6 +168,10 @@ function buildInstruction(action, missingField, state, tableMinimum) {
         case 'night_type':
           return `Ask when they're planning to come to Reign.`;
         case 'group_size':
+          // Male who just asked about guestlist — redirect naturally before asking size
+          if (isMale && state.last_intent === 'guestlist') {
+            return `Tell them the guestlist is girls only bro, but you can sort them a table no problem. Ask how many of them are coming.`;
+          }
           return `Ask how many people are in their group.`;
         case 'group_composition':
           return `Ask how many guys and how many girls are in the group.`;
@@ -198,6 +202,28 @@ function buildInstruction(action, missingField, state, tableMinimum) {
 
     case 'birthday_acknowledgement':
       return `The guest mentioned a birthday or special occasion. Respond with genuine excitement — make them feel special.`;
+
+    case 'handoff': {
+      const reason = state.handoff_reason || '';
+      // Guy asking about guestlist — must be told it's girls only, then pivoted to table
+      if (isMale && (state.last_intent === 'guestlist' || reason === 'large_table_group')) {
+        return `Tell them guestlist is strictly girls only, but a table is no problem for the group. Let them know you're going to check with the owner and will get back to them shortly.`;
+      }
+      // Large table group (any gender)
+      if (reason === 'large_table_group') {
+        return `Let them know it's a bigger group so you want to check with the owner first. Tell them you'll get back to them very shortly to sort it.`;
+      }
+      // Voice / image message
+      if (reason.includes('voice') || reason.includes('image') || reason.includes('video')) {
+        return `Acknowledge their message and let them know you'll get back to them shortly.`;
+      }
+      // Other venue mentioned
+      if (reason.includes('other_venue')) {
+        return `Respond naturally and steer the conversation back to Reign.`;
+      }
+      // Generic fallback
+      return `Let the guest know you're sorting it and will get back to them very shortly. Keep it casual and reassuring.`;
+    }
 
     case 'holding':
       return `Let the guest know you're sorting it for them right now. Keep it super short and natural.`;
