@@ -113,8 +113,18 @@ function mergeRouterIntoState(state, routerOutput, intent) {
 
   if (routerOutput.nightType !== null) updates.night_type = routerOutput.nightType;
 
-  // Collect names — append new ones, avoid duplicates
-  if (routerOutput.names && routerOutput.names.length > 0) {
+  // Collect names — ONLY when the flow has reached the names stage.
+  // This prevents greetings like "Heyyy booking" or "Guest list peaked"
+  // from being stored as fake names before we've asked for them.
+  const partialState = { ...state, ...updates };
+  const currentNeed = getNextMissingField(partialState);
+  const namesExpected =
+    currentNeed === 'full_names' ||
+    currentNeed === 'full_name_for_table' ||
+    // Also allow if names already partially collected (user sending more)
+    (state.collected_names.length > 0 && currentNeed === 'instagram_handles');
+
+  if (namesExpected && routerOutput.names && routerOutput.names.length > 0) {
     const existing = state.collected_names || [];
     const merged = [...new Set([...existing, ...routerOutput.names])];
     updates.collected_names = merged;

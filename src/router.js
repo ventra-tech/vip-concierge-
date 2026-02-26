@@ -233,19 +233,23 @@ function extractNamesAndInstagram(text) {
   const commaParts = normalised.split(',').map(p => p.trim()).filter(Boolean);
   if (commaParts.length >= 2) {
     const nameParts = [];
-    let allNames = true;
     for (const part of commaParts) {
-      // Strip any instagram handles from the part
-      const cleaned = part.replace(/@[\w.]+/g, '').replace(/(?:https?:\/\/)?(?:www\.)?instagram\.com\/\S+/gi, '').trim();
+      // Strip handles, URLs, list numbers, and separators
+      const cleaned = part
+        .replace(/@[\w.]+/g, '')
+        .replace(/(?:https?:\/\/)?(?:www\.)?instagram\.com\/\S+/gi, '')
+        .replace(/^\d+[.)]\s*/, '')
+        .replace(/^[-–—|:,]\s*/, '')
+        .replace(/\s*[-–—|:,]+\s*$/, '')
+        .trim();
       // Allow: "First Last", "First-Last Last", "FIRST LAST", "First Last Last"
-      if (/^[A-Za-z]+([-'][A-Za-z]+)?(\s+[A-Za-z]+([-'][A-Za-z]+)?)+$/.test(cleaned)) {
+      if (cleaned && /^[A-Za-z]+([-'][A-Za-z]+)?(\s+[A-Za-z]+([-'][A-Za-z]+)?)+$/.test(cleaned)) {
         nameParts.push(cleaned);
-      } else {
-        allNames = false;
-        break;
       }
+      // Non-matching parts are silently skipped (don't abort entire list)
     }
-    if (allNames && nameParts.length >= 2) {
+    // Accept if at least 2 name-looking parts found
+    if (nameParts.length >= 2) {
       nameParts.forEach(n => { if (!names.includes(n)) names.push(n); });
     }
   }
@@ -262,10 +266,13 @@ function extractNamesAndInstagram(text) {
     if (SKIP_LINES.test(line)) continue;
     if (LABEL_LINES.test(line)) continue;
 
-    // Strip URLs and @handles first, then check what's left for a name
+    // Strip URLs and @handles first, then clean up separators/list numbers
     const namePart = line
       .replace(URL_RE, '')
       .replace(/@[\w.]+/g, '')
+      .replace(/^\d+[.)]\s*/, '')       // strip leading list number e.g. "1. " "2) "
+      .replace(/^[-–—|:,]\s*/, '')      // strip leading separator
+      .replace(/\s*[-–—|:,]+\s*$/, '')  // strip trailing separator (e.g. "Molly Smith -")
       .trim();
 
     // Skip if remaining text is clearly a sentence (has ! or ? or is very long)
