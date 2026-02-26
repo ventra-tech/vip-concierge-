@@ -73,14 +73,37 @@ function parseIncomingPayload(body) {
 // ─── OUTBOUND: Format Reply for ManyChat API ──────────────────────────────────
 
 /**
- * Send a text message reply via ManyChat's Send Message API.
+ * Send a text message to a subscriber.
+ *
+ * PRIMARY route: n8n webhook (process.env.N8N_SEND_URL)
+ *   n8n already has ManyChat credentials configured — it handles auth correctly.
+ *   n8n webhook should accept { subscriber_id, text } and use its ManyChat node to send.
+ *
+ * FALLBACK: Direct ManyChat API (only if N8N_SEND_URL is not set)
+ *
  * @param {string} subscriberId
  * @param {string} text
- * @returns {Promise<object>} ManyChat API response
+ * @returns {Promise<object>}
  */
 async function sendTextMessage(subscriberId, text) {
-  // Instagram DMs use /instagram/sending/sendContent (not /fb/)
-  // No message_tag — that's Facebook Messenger only
+  // ── Primary: route through n8n (avoids ManyChat API endpoint issues) ──
+  const n8nSendUrl = process.env.N8N_SEND_URL;
+  if (n8nSendUrl) {
+    const response = await fetch(n8nSendUrl, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ subscriber_id: subscriberId, text }),
+    });
+    if (!response.ok) {
+      const err = await response.text();
+      throw new Error(`n8n send webhook error ${response.status}: ${err}`);
+    }
+    console.log(`[manyChat] sendTextMessage via n8n OK — subscriber: ${subscriberId}`);
+    return { status: 'sent_via_n8n' };
+  }
+
+  // ── Fallback: direct ManyChat API ──
+  // NOTE: This returns 404 on some Instagram accounts — use N8N_SEND_URL instead
   const url = `${config.manyChat.apiBase}/instagram/sending/sendContent`;
 
   const body = {
@@ -88,12 +111,7 @@ async function sendTextMessage(subscriberId, text) {
     data: {
       version: 'v2',
       content: {
-        messages: [
-          {
-            type: 'text',
-            text,
-          },
-        ],
+        messages: [{ type: 'text', text }],
       },
     },
   };
