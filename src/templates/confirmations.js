@@ -43,16 +43,29 @@ function guestlistConfirmation(state) {
 // ─── TABLE CONFIRMATION ───────────────────────────────────────────────────────
 
 /**
- * Table booking confirmation — asks for name + phone number.
+ * Table booking confirmation — sent after name + phone are collected.
+ * Mirrors the guestlist confirmation format with table-specific details.
  * @param {import('../state').ConversationState} state
  * @param {{ min: number, label: string }} tableMinimum
  * @returns {string}
  */
 function tableConfirmation(state, tableMinimum) {
+  const night = _nightLabel(state.night_type);
+  const minLabel = tableMinimum ? tableMinimum.label : 'TBC';
   return [
-    `Easy ❤️ I can do a table min spending ${tableMinimum.label}`,
-    `Send me your full name for the booking and your number as well`,
-    `I'll add you to a gc with the owner, he is a good friend of mine as well`,
+    `Sorted 🍾 I'll add you to the gc with the owner now`,
+    ``,
+    `For - Reign ${night}`,
+    `Address: ${REIGN.address}`,
+    ``,
+    `Min spend: ${minLabel}`,
+    `Please arrive by 23:00`,
+    `Dress code: ${REIGN.dress_code_guys}`,
+    `${REIGN.id_requirement}`,
+    ``,
+    `Text me when you arrive 📱`,
+    ``,
+    `At the door say "${REIGN.door_phrase}"`,
   ].join('\n');
 }
 
