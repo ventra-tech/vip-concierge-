@@ -304,6 +304,11 @@ function _resolveNightType(state) {
 // ─── GUESTLIST FLOW ───────────────────────────────────────────────────────────
 
 function _handleGuestlistFlow(state) {
+  // Already confirmed — booking is done, just chat naturally
+  if (state.status === 'confirmed') {
+    return { action: 'rapport', updatedState: state, missingField: null, tableMinimum: null, eligibilityResult: null };
+  }
+
   // Guestlist is always girls only — force this in state
   let s = updateState(state, { guys: 0, gender_mix: 'girls' });
 
@@ -327,6 +332,11 @@ function _handleGuestlistFlow(state) {
 // ─── TABLE FLOW ───────────────────────────────────────────────────────────────
 
 function _handleTableFlow(state) {
+  // Already confirmed — booking is done, just chat naturally
+  if (state.status === 'confirmed') {
+    return { action: 'rapport', updatedState: state, missingField: null, tableMinimum: null, eligibilityResult: null };
+  }
+
   // Anti-loop: if about to ask night_type again, default it to weekend
   let s = state;
   if (s.night_type === null && getNextMissingField(s) === 'night_type') {

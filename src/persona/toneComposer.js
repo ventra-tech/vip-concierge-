@@ -167,6 +167,9 @@ function buildInstruction(action, missingField, state, tableMinimum) {
 
   switch (action) {
     case 'rapport':
+      if (state.status === 'confirmed') {
+        return `The booking is already confirmed and complete. The guest is just saying thanks or chatting. Respond with a short, warm closing — like "Amazing see you there! x" or "Can't wait 🥂". Do NOT repeat booking details or send any confirmation info.`;
+      }
       return isMale
         ? `New guest has reached out. Greet them and ask what you can sort for them — they're likely looking to book a table.`
         : `New guest has reached out. Greet them warmly and find out if they want guestlist or a table.`;
