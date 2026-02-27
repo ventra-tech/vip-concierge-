@@ -309,12 +309,13 @@ function decideNextAction(state, routerOutput) {
 }
 
 // ─── NIGHT TYPE ANTI-LOOP ─────────────────────────────────────────────────────
-// If we've asked for night_type twice and still have no answer, default to weekend.
-// Stops the bot repeating the same question forever when user isn't giving a specific day.
+// Ask 1: "What night are you thinking?"
+// Ask 2: If still no answer — show weekday vs weekend pricing to help them decide.
+// Ask 3: Give up and default to weekend.
 
 function _resolveNightType(state) {
   if (state.night_type !== null) return state; // already known
-  if ((state.night_type_asks || 0) >= 1) {
+  if ((state.night_type_asks || 0) >= 2) {
     // Give up asking after 1 attempt — default to weekend
     return updateState(state, { night_type: 'weekend', night_type_asks: (state.night_type_asks || 0) + 1 });
   }

@@ -196,8 +196,17 @@ function buildInstruction(action, missingField, state, tableMinimum) {
           return isMale
             ? `Ask if they want to book a table.`
             : `Ask if they want guestlist or a table.`;
-        case 'night_type':
+        case 'night_type': {
+          const isSecondAsk = (state.night_type_asks || 0) >= 1;
+          if (isSecondAsk && state.lead_type === 'table' && state.group_size) {
+            const weekendMin = getTableMinimum(state.group_size, 'weekend');
+            const weekdayMin = getTableMinimum(state.group_size, 'weekday');
+            if (weekdayMin.min !== weekendMin.min) {
+              return `They weren't sure about the night. Let them know the min spend is ${weekdayMin.label} on a weekday or ${weekendMin.label} on a weekend, and ask which they're leaning towards. Keep it casual and short.`;
+            }
+          }
           return `You need to confirm what night they're planning to come. Even if they casually mentioned "tonight" — always ask explicitly, because they might mean a different night (e.g. someone asks "what's lit tonight" but is actually planning for the weekend). Ask something like "What night are you thinking?" Keep it short and casual. Do NOT ask for names or phone number yet.`;
+        }
         case 'group_size':
           // Male who just asked about guestlist — redirect naturally before asking size
           if (isMale && state.last_intent === 'guestlist') {
