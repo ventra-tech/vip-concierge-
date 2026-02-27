@@ -170,9 +170,25 @@ function buildInstruction(action, missingField, state, tableMinimum) {
       if (state.status === 'confirmed') {
         return `The booking is already confirmed and complete. The guest is just saying thanks or chatting. Respond with a short, warm closing — like "Amazing see you there! x" or "Can't wait 🥂". Do NOT repeat booking details or send any confirmation info.`;
       }
-      return isMale
-        ? `New guest has reached out. Greet them and ask what you can sort for them — they're likely looking to book a table.`
-        : `New guest has reached out. Greet them warmly and find out if they want guestlist or a table.`;
+      {
+        // Rotating openers — randomly pick one each time for variation
+        const maleOpeners = [
+          `Yoo bro 😏 you came to the right place trust. What's the occasion?`,
+          `Yo bro 🔥 good timing. What's the occasion?`,
+        ];
+        const femaleOpeners = [
+          `Heyy gorgeous 🥂 you came to the right place trust me. What's the occasion? x`,
+          `Heyyy darling 🥂 so glad you reached out. What's the occasion? x`,
+        ];
+        const neutralOpeners = [
+          `Yoo 😏 you came to the right place trust. What's the occasion?`,
+          `Yoo 🔥 good timing. What's the occasion?`,
+        ];
+        const gender = state.detected_gender;
+        const pool = gender === 'male' ? maleOpeners : gender === 'female' ? femaleOpeners : neutralOpeners;
+        const opener = pool[Math.floor(Math.random() * pool.length)];
+        return `New guest just reached out. Use this exact opener and nothing else: "${opener}"`;
+      }
 
     case 'ask_question':
       switch (missingField) {

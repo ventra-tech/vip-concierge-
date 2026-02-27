@@ -267,8 +267,10 @@ function decideNextAction(state, routerOutput) {
     };
   }
 
-  // ── Step 6: First message / unknown — build rapport ──
-  if (intent === 'unknown' && updatedState.turn_count <= 1) {
+  // ── Step 6: Turn 1 — always build rapport first (ask occasion) ──
+  // Fires regardless of intent so we warm up before asking booking questions.
+  // The LLM naturally reacts to their occasion answer on turn 2 from conversation history.
+  if (updatedState.turn_count <= 1) {
     return {
       action: 'rapport',
       updatedState,
@@ -278,7 +280,7 @@ function decideNextAction(state, routerOutput) {
     };
   }
 
-  // ── Step 6: Route by lead type ──
+  // ── Step 7: Route by lead type ──
 
   if (updatedState.lead_type === 'guestlist') {
     return _handleGuestlistFlow(updatedState);
