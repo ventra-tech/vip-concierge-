@@ -201,10 +201,10 @@ function buildInstruction(action, missingField, state, tableMinimum) {
         case 'full_name_for_table': {
           const tMin = tableMinimum || (state.group_size ? getTableMinimum(state.group_size, state.night_type) : null);
           const minText = tMin ? ` Minimum spend is ${tMin.label}.` : '';
-          return `They want to book a table.${minText} Ask for their full name for the booking and their phone number.`;
+          return `They want to book a table.${minText} Ask for their full name for the booking and their UK phone number (mention UK numbers only — +44 or 07xxx format).`;
         }
         case 'phone_number':
-          return `You have their name but still need their phone number to add them to the group chat with the owner.`;
+          return `You have their name but still need their UK phone number to add them to the group chat with the owner. Mention UK numbers only (+44 or 07xxx).`;
         default:
           return `Continue the conversation naturally and gather the missing information: ${missingField}.`;
       }

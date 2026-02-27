@@ -132,7 +132,7 @@ function mergeRouterIntoState(state, routerOutput, intent) {
       .map(p => p
         .replace(/@[\w.]+/g, '')                                           // strip @handles
         .replace(/(?:https?:\/\/)?(?:www\.)?instagram\.com\/\S+/gi, '')    // strip instagram links
-        .replace(/\b\+?[\d\s\-()]{7,}\b/g, '')                            // strip phone numbers
+        .replace(/\+?(?:44|0)[\d\s\-()]{9,}/g, '')                         // strip UK phone numbers (+44xxx, 07xxx, 447xxx)
         .replace(/^\d+[.)]\s*/, '')                                        // strip list numbers "1. "
         .replace(/^[-–—|:,]\s*/, '')                                       // strip leading separators
         .replace(/\s*[-–—|:,]+\s*$/, '')                                   // strip trailing separators
