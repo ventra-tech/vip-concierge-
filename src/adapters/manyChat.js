@@ -56,6 +56,9 @@ function parseIncomingPayload(body) {
   const lastName =
     body.last_name || subscriber?.last_name || '';
 
+  // Combine into full name — falls back gracefully if last name is empty
+  const fullName = [firstName, lastName].filter(Boolean).join(' ').trim();
+
   const username =
     body.username || subscriber?.username || subscriber?.instagram_username || '';
 
@@ -63,7 +66,7 @@ function parseIncomingPayload(body) {
     subscriberId,
     messageText,
     messageType,
-    firstName,
+    firstName: fullName || firstName,  // use full name if available, else just first
     lastName,
     username,
     rawPayload: body,
