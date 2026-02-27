@@ -219,9 +219,11 @@ function buildInstruction(action, missingField, state, tableMinimum) {
         case 'group_size':
           // Male who just asked about guestlist — redirect naturally before asking size
           if (isMale && state.last_intent === 'guestlist') {
-            return `Tell them the guestlist is girls only bro, but you can sort them a table no problem. Ask how many are looking to come.`;
+            return `Tell them the guestlist is girls only bro, but you can sort them a table no problem. Ask how many are looking to come. Keep it short.`;
           }
-          return `Ask how many are looking to come. Keep it casual and short.`;
+          // IMPORTANT: lead type is already confirmed (${state.lead_type || 'table/guestlist'}) — do NOT ask about guestlist vs table again.
+          // Your only job is to ask how many people are coming. One short question, nothing else.
+          return `Ask how many people are coming. ONLY ask this — do not mention guestlist or table. Keep it casual and very short, like "How many of you?" or "How many are coming?"`;
         case 'group_composition':
           return `Ask how many guys and how many girls are in the group.`;
         case 'guys_count':
@@ -299,6 +301,28 @@ async function composeReply({
       if (state.lead_type === 'table') return tableConfirmation(state, tableMinimum);
       break;
 
+    // ── Hardcoded rapport opener — prevents LLM going off-script on turn 1 ──
+    case 'rapport': {
+      if (state.status !== 'confirmed') {
+        const gender = state.detected_gender;
+        const maleOpeners = [
+          `Yoo bro 😏 you came to the right place trust. What's the occasion?`,
+          `Yo bro 🔥 good timing. What's the occasion?`,
+        ];
+        const femaleOpeners = [
+          `Heyy gorgeous 🥂 you came to the right place trust me. What's the occasion? x`,
+          `Heyyy darling 🥂 so glad you reached out. What's the occasion? x`,
+        ];
+        const neutralOpeners = [
+          `Yoo 😏 you came to the right place trust. What's the occasion?`,
+          `Yoo 🔥 good timing. What's the occasion?`,
+        ];
+        const pool = gender === 'male' ? maleOpeners : gender === 'female' ? femaleOpeners : neutralOpeners;
+        return pool[Math.floor(Math.random() * pool.length)];
+      }
+      break;
+    }
+
     // ── Guaranteed min spend ask — never let the LLM skip this ──
     case 'ask_question':
       if (missingField === 'full_name_for_table') {
@@ -353,7 +377,7 @@ YOUR NEXT TASK: ${instruction}`;
     messages.push({ role: 'user', content: rawUserMessage });
   }
 
-  const raw = await callLLM(messages, { maxTokens: 150, temperature: 0.8 });
+  const raw = await callLLM(messages, { maxTokens: 150, temperature: 0.6 });
   return stripBannedPhrases(raw);
 }
 
