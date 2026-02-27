@@ -114,8 +114,8 @@ function mergeRouterIntoState(state, routerOutput, intent) {
   if (routerOutput.nightType !== null) updates.night_type = routerOutput.nightType;
 
   // Collect names — ONLY when the flow has reached the names stage.
-  // This prevents greetings like "Heyyy booking" or "Guest list peaked"
-  // from being stored as fake names before we've asked for them.
+  // Raw capture: just take whatever they typed, split by comma/newline.
+  // No name-regex validation — simpler and more reliable.
   const partialState = { ...state, ...updates };
   const currentNeed = getNextMissingField(partialState);
   const namesExpected =
@@ -124,10 +124,24 @@ function mergeRouterIntoState(state, routerOutput, intent) {
     // Also allow if names already partially collected (user sending more)
     (state.collected_names.length > 0 && currentNeed === 'instagram_handles');
 
-  if (namesExpected && routerOutput.names && routerOutput.names.length > 0) {
-    const existing = state.collected_names || [];
-    const merged = [...new Set([...existing, ...routerOutput.names])];
-    updates.collected_names = merged;
+  if (namesExpected && routerOutput.rawText) {
+    const rawParts = routerOutput.rawText
+      .split(/[,\n]+/)
+      .map(p => p
+        .replace(/@[\w.]+/g, '')                                           // strip @handles
+        .replace(/(?:https?:\/\/)?(?:www\.)?instagram\.com\/\S+/gi, '')    // strip instagram links
+        .replace(/^\d+[.)]\s*/, '')                                        // strip list numbers "1. "
+        .replace(/^[-–—|:,]\s*/, '')                                       // strip leading separators
+        .replace(/\s*[-–—|:,]+\s*$/, '')                                   // strip trailing separators
+        .trim()
+      )
+      .filter(p => p.length > 1);                                          // drop empty/single-char
+
+    if (rawParts.length > 0) {
+      const existing = state.collected_names || [];
+      const merged = [...new Set([...existing, ...rawParts])];
+      updates.collected_names = merged;
+    }
   }
 
   // Collect Instagram handles — append new ones, avoid duplicates
