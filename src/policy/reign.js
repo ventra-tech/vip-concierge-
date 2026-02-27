@@ -126,6 +126,32 @@ function checkHandoffRequired({ messageType, messageText, state }) {
   return { required: false, reason: null };
 }
 
+// ─── BOOKING VALUE CALCULATOR ────────────────────────────────────────────────
+
+/**
+ * Calculate the estimated value of a confirmed booking.
+ * Guestlist: entry fee × headcount.
+ * Table: minimum spend from getTableMinimum().
+ *
+ * @param {object} state
+ * @returns {{ min: number, max: number|null, label: string }}
+ */
+function calculateBookingValue(state) {
+  if (state.lead_type === 'guestlist') {
+    const headcount = state.girls || state.group_size || 0;
+    const value = headcount * REIGN.entry_fee;
+    return { min: value, max: null, label: value > 0 ? `£${value}` : 'Free (guestlist)' };
+  }
+
+  if (state.lead_type === 'table') {
+    const groupSize = state.group_size || 0;
+    if (groupSize === 0) return { min: 0, max: null, label: 'TBC' };
+    return getTableMinimum(groupSize, state.night_type);
+  }
+
+  return { min: 0, max: null, label: 'TBC' };
+}
+
 // ─── NIGHT TYPE HELPER ───────────────────────────────────────────────────────
 
 /**
@@ -150,6 +176,7 @@ function detectNightType(input) {
 module.exports = {
   REIGN,
   getTableMinimum,
+  calculateBookingValue,
   evaluateGuestlistEligibility,
   checkHandoffRequired,
   detectNightType,

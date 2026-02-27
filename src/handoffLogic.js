@@ -5,6 +5,7 @@
  */
 
 const { resumeSession } = require('./sessionStore');
+const { calculateBookingValue } = require('./policy/reign');
 
 // ─── HANDOFF ACTION BUILDER ───────────────────────────────────────────────────
 
@@ -53,9 +54,7 @@ function buildHandoffAlert(state) {
   }
 
   // Estimated value label
-  const estValue = state.estimated_value
-    ? `£${state.estimated_value.toLocaleString()}`
-    : state.lead_type === 'table' ? 'TBC' : 'Free (guestlist)';
+  const estValue = calculateBookingValue(state).label;
 
   // Lead type badge colour
   const leadBadgeColor = state.lead_type === 'table' ? '#7C3AED' : '#0EA5E9';
@@ -219,6 +218,27 @@ function buildConfirmationEmail(state) {
     ? `<div style="margin-top:8px;font-size:13px;color:#6366f1;">${extraHandles.join(' · ')}</div>`
     : '';
 
+  // Conversation history (same style as handoff email)
+  const allHistory = state.conversation_history || [];
+  const totalMessages = allHistory.length;
+  const historyHtml = allHistory.map(msg => {
+    const isBot = msg.role === 'assistant';
+    const bg = isBot ? '#f0f0f0' : '#DCF8C6';
+    const align = isBot ? 'left' : 'right';
+    return `<div style="text-align:${align};margin:4px 0;">
+      <span style="background:${bg};padding:6px 10px;border-radius:8px;display:inline-block;max-width:80%;font-size:13px;">
+        <strong>${isBot ? '🤖 Bot' : '👤 Customer'}:</strong> ${msg.content}
+      </span>
+    </div>`;
+  }).join('');
+
+  const bookingValue = calculateBookingValue(state);
+  const valueLabel = bookingValue.max
+    ? `${bookingValue.label} min spend`
+    : state.lead_type === 'guestlist'
+      ? `${bookingValue.label} entry`
+      : bookingValue.label;
+
   const phoneHtml = state.phone_number
     ? `<tr><td colspan="2" style="background:#f0fdf4;border:1px solid #bbf7d0;border-radius:10px;padding:12px 14px;vertical-align:top;">
         <div style="font-size:11px;color:#16a34a;font-weight:600;text-transform:uppercase;letter-spacing:0.5px;margin-bottom:4px;">📱 Phone Number</div>
@@ -259,6 +279,16 @@ function buildConfirmationEmail(state) {
           <div style="font-size:15px;font-weight:700;color:#1e293b;">${nightLabel}</div>
         </td>
       </tr>
+      <tr>
+        <td style="background:#f0fdf4;border:1px solid #bbf7d0;border-radius:10px;padding:12px 14px;vertical-align:top;">
+          <div style="font-size:11px;color:#16a34a;font-weight:600;text-transform:uppercase;letter-spacing:0.5px;margin-bottom:4px;">💰 Booking Value</div>
+          <div style="font-size:18px;font-weight:800;color:#15803d;">${valueLabel}</div>
+        </td>
+        <td style="background:#f1f5f9;border-radius:10px;padding:12px 14px;vertical-align:top;">
+          <div style="font-size:11px;color:#64748b;font-weight:600;text-transform:uppercase;letter-spacing:0.5px;margin-bottom:4px;">💬 Messages</div>
+          <div style="font-size:15px;font-weight:700;color:#1e293b;">${state.turn_count} turns</div>
+        </td>
+      </tr>
       ${phoneHtml}
     </table>
   </div>
@@ -271,6 +301,16 @@ function buildConfirmationEmail(state) {
     <div style="border:1px solid #e2e8f0;padding:12px;border-radius:10px;background:#fafafa;">
       ${namesListHtml}
       ${extraHandlesHtml}
+    </div>
+  </div>
+
+  <!-- Conversation History -->
+  <div style="background:#ffffff;padding:20px;border-left:1px solid #e2e8f0;border-right:1px solid #e2e8f0;border-top:1px solid #e2e8f0;">
+    <p style="margin:0 0 12px;font-size:13px;font-weight:700;color:#374151;text-transform:uppercase;letter-spacing:0.5px;">
+      💬 Conversation ${totalMessages > 0 ? `<span style="font-weight:400;color:#9ca3af;">(${totalMessages} messages)</span>` : ''}
+    </p>
+    <div style="border:1px solid #e2e8f0;padding:12px;border-radius:10px;max-height:300px;overflow-y:auto;background:#fafafa;">
+      ${historyHtml || '<p style="color:#9ca3af;font-size:13px;text-align:center;margin:20px 0;">No messages recorded yet</p>'}
     </div>
   </div>
 

@@ -116,13 +116,15 @@ function mergeRouterIntoState(state, routerOutput, intent) {
   // Collect names — ONLY when the flow has reached the names stage.
   // Raw capture: just take whatever they typed, split by comma/newline.
   // No name-regex validation — simpler and more reliable.
-  const partialState = { ...state, ...updates };
-  const currentNeed = getNextMissingField(partialState);
+  // Use the PRE-update state to decide if names are expected.
+  // If we used the post-update state, answering "next weekend please" would
+  // set night_type → make names the next need → wrongly capture "next weekend please" as a name.
+  const prevNeed = getNextMissingField(state);
   const namesExpected =
-    currentNeed === 'full_names' ||
-    currentNeed === 'full_name_for_table' ||
+    prevNeed === 'full_names' ||
+    prevNeed === 'full_name_for_table' ||
     // Also allow if names already partially collected (user sending more)
-    (state.collected_names.length > 0 && currentNeed === 'instagram_handles');
+    (state.collected_names.length > 0 && prevNeed === 'instagram_handles');
 
   if (namesExpected && routerOutput.rawText) {
     const rawParts = routerOutput.rawText
