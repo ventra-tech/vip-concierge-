@@ -17,7 +17,6 @@ const {
   evaluateGuestlistEligibility,
   getTableMinimum,
   checkHandoffRequired,
-  detectNightType,
 } = require('./policy/reign');
 const { updateState } = require('./state');
 
@@ -112,13 +111,10 @@ function mergeRouterIntoState(state, routerOutput, intent) {
     }
   }
 
-  if (routerOutput.nightType !== null) {
-    updates.night_type = routerOutput.nightType;
-  } else if (!state.night_type && routerOutput.rawText) {
-    // Deterministic fallback: catch "tonight", "Friday", "Saturday" etc. the LLM may have missed
-    const detectedNight = detectNightType(routerOutput.rawText);
-    if (detectedNight) updates.night_type = detectedNight;
-  }
+  // Only trust the LLM's explicit nightType extraction — no deterministic fallback.
+  // Casual mentions like "what's lit tonight" don't mean they're coming tonight.
+  // The bot always asks explicitly to confirm the night.
+  if (routerOutput.nightType !== null) updates.night_type = routerOutput.nightType;
 
   // Collect names — ONLY when the flow has reached the names stage.
   // Raw capture: just take whatever they typed, split by comma/newline.

@@ -197,13 +197,13 @@ function buildInstruction(action, missingField, state, tableMinimum) {
             ? `Ask if they want to book a table.`
             : `Ask if they want guestlist or a table.`;
         case 'night_type':
-          return `You have their group size but don't know which night they're coming. Ask what night they're planning — this Saturday, next weekend, etc. Keep it casual. Do NOT ask for names yet — you need the night first.`;
+          return `You need to confirm what night they're planning to come. Even if they casually mentioned "tonight" — always ask explicitly, because they might mean a different night (e.g. someone asks "what's lit tonight" but is actually planning for the weekend). Ask something like "What night are you thinking?" Keep it short and casual. Do NOT ask for names or phone number yet.`;
         case 'group_size':
           // Male who just asked about guestlist — redirect naturally before asking size
           if (isMale && state.last_intent === 'guestlist') {
-            return `Tell them the guestlist is girls only bro, but you can sort them a table no problem. Ask how many of them are coming.`;
+            return `Tell them the guestlist is girls only bro, but you can sort them a table no problem. Ask how many are looking to come.`;
           }
-          return `Ask how many people are in their group.`;
+          return `Ask how many are looking to come. Keep it casual and short.`;
         case 'group_composition':
           return `Ask how many guys and how many girls are in the group.`;
         case 'guys_count':
@@ -279,6 +279,23 @@ async function composeReply({
     case 'confirm':
       if (state.lead_type === 'guestlist') return guestlistConfirmation(state);
       if (state.lead_type === 'table') return tableConfirmation(state, tableMinimum);
+      break;
+
+    // ── Guaranteed min spend ask — never let the LLM skip this ──
+    case 'ask_question':
+      if (missingField === 'full_name_for_table') {
+        const tMin = tableMinimum || (state.group_size ? getTableMinimum(state.group_size, state.night_type) : null);
+        const isMale = state.detected_gender === 'male';
+        const minText = tMin ? `Min spend is ${tMin.label}` : null;
+        if (isMale) {
+          return minText
+            ? `Easy 🍾 ${minText} for your group. Drop me your full name and number and I'll get it sorted`
+            : `Easy 🍾 Drop me your full name and number and I'll get it sorted`;
+        }
+        return minText
+          ? `Easy 🍾 ${minText}. Send me your full name and number x`
+          : `Easy 🍾 Send me your full name and number x`;
+      }
       break;
 
     case 'approve_guestlist':
