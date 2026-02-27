@@ -184,6 +184,112 @@ function buildHandoffAlert(state) {
   };
 }
 
+// ─── CONFIRMATION EMAIL BUILDER ───────────────────────────────────────────────
+
+/**
+ * Build a confirmation email to notify Sanad when a booking is fully confirmed.
+ * No action buttons — this is a pure notification.
+ * @param {import('./state').ConversationState} state
+ * @returns {object} Action payload
+ */
+function buildConfirmationEmail(state) {
+  const displayName = state.username
+    ? `@${state.username}`
+    : state.first_name || `ID: ${state.subscriberId}`;
+
+  const leadLabel = state.lead_type === 'table' ? '🍾 Table Booking' : '✅ Guestlist Booking';
+  const leadBadgeColor = state.lead_type === 'table' ? '#7C3AED' : '#16a34a';
+  const nightLabel = state.night_type === 'weekend' ? '🎉 Weekend'
+    : state.night_type === 'weekday' ? '📅 Weekday'
+    : state.night_type || '❓ Not specified';
+
+  // Pair names with their instagrams where possible
+  const namesListHtml = state.collected_names.length > 0
+    ? state.collected_names.map((name, i) => {
+        const ig = state.collected_instagrams[i] ? ` <span style="color:#6366f1;font-weight:500;">${state.collected_instagrams[i]}</span>` : '';
+        return `<div style="padding:8px 0;border-bottom:1px solid #f1f5f9;font-size:14px;color:#1e293b;">
+          📝 <strong>${name}</strong>${ig}
+        </div>`;
+      }).join('')
+    : '<div style="color:#9ca3af;font-size:13px;">No names collected</div>';
+
+  // Extra instagram handles beyond the paired ones
+  const extraHandles = state.collected_instagrams.slice(state.collected_names.length);
+  const extraHandlesHtml = extraHandles.length > 0
+    ? `<div style="margin-top:8px;font-size:13px;color:#6366f1;">${extraHandles.join(' · ')}</div>`
+    : '';
+
+  const phoneHtml = state.phone_number
+    ? `<tr><td colspan="2" style="background:#f0fdf4;border:1px solid #bbf7d0;border-radius:10px;padding:12px 14px;vertical-align:top;">
+        <div style="font-size:11px;color:#16a34a;font-weight:600;text-transform:uppercase;letter-spacing:0.5px;margin-bottom:4px;">📱 Phone Number</div>
+        <div style="font-size:15px;font-weight:700;color:#1e293b;">${state.phone_number}</div>
+      </td></tr>`
+    : '';
+
+  const emailHtml = `
+<div style="font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Arial,sans-serif;max-width:600px;background:#f8f9fa;padding:0;">
+
+  <!-- Header -->
+  <div style="background:#15803d;padding:24px;border-radius:12px 12px 0 0;">
+    <p style="margin:0 0 4px;color:#bbf7d0;font-size:12px;font-weight:600;letter-spacing:1px;text-transform:uppercase;">New Booking</p>
+    <h2 style="margin:0;color:#ffffff;font-size:22px;">✅ Confirmed — ${displayName}</h2>
+    <p style="margin:6px 0 0;color:#dcfce7;font-size:13px;">${leadLabel} · ${nightLabel}</p>
+  </div>
+
+  <!-- Summary Tiles -->
+  <div style="background:#ffffff;padding:20px;border-left:1px solid #e2e8f0;border-right:1px solid #e2e8f0;">
+    <table style="width:100%;border-collapse:separate;border-spacing:8px;">
+      <tr>
+        <td style="background:#f1f5f9;border-radius:10px;padding:12px 14px;width:50%;vertical-align:top;">
+          <div style="font-size:11px;color:#64748b;font-weight:600;text-transform:uppercase;letter-spacing:0.5px;margin-bottom:4px;">👤 Customer</div>
+          <div style="font-size:15px;font-weight:700;color:#1e293b;">${displayName}</div>
+        </td>
+        <td style="background:#f1f5f9;border-radius:10px;padding:12px 14px;width:50%;vertical-align:top;">
+          <div style="font-size:11px;color:#64748b;font-weight:600;text-transform:uppercase;letter-spacing:0.5px;margin-bottom:4px;">📋 Type</div>
+          <div style="font-size:15px;font-weight:700;color:${leadBadgeColor};">${leadLabel}</div>
+        </td>
+      </tr>
+      <tr>
+        <td style="background:#f1f5f9;border-radius:10px;padding:12px 14px;vertical-align:top;">
+          <div style="font-size:11px;color:#64748b;font-weight:600;text-transform:uppercase;letter-spacing:0.5px;margin-bottom:4px;">👥 Group</div>
+          <div style="font-size:15px;font-weight:700;color:#1e293b;">${_describeGroup(state)}</div>
+        </td>
+        <td style="background:#f1f5f9;border-radius:10px;padding:12px 14px;vertical-align:top;">
+          <div style="font-size:11px;color:#64748b;font-weight:600;text-transform:uppercase;letter-spacing:0.5px;margin-bottom:4px;">🌙 Night</div>
+          <div style="font-size:15px;font-weight:700;color:#1e293b;">${nightLabel}</div>
+        </td>
+      </tr>
+      ${phoneHtml}
+    </table>
+  </div>
+
+  <!-- Names & Instagrams -->
+  <div style="background:#ffffff;padding:20px;border-left:1px solid #e2e8f0;border-right:1px solid #e2e8f0;border-top:1px solid #e2e8f0;">
+    <p style="margin:0 0 12px;font-size:13px;font-weight:700;color:#374151;text-transform:uppercase;letter-spacing:0.5px;">
+      📝 Names & Instagrams <span style="font-weight:400;color:#9ca3af;">(${state.collected_names.length} people)</span>
+    </p>
+    <div style="border:1px solid #e2e8f0;padding:12px;border-radius:10px;background:#fafafa;">
+      ${namesListHtml}
+      ${extraHandlesHtml}
+    </div>
+  </div>
+
+  <!-- Footer -->
+  <div style="background:#1a1a2e;padding:16px 20px;border-radius:0 0 12px 12px;text-align:center;">
+    <p style="margin:0;font-size:11px;color:#4a5568;">Reign Concierge Brain · ${new Date().toLocaleString('en-GB', { timeZone: 'Europe/London' })}</p>
+  </div>
+
+</div>`;
+
+  return {
+    type: 'BOOKING_CONFIRMED',
+    subscriberId: state.subscriberId,
+    email_html: emailHtml,
+    lead_type: state.lead_type,
+    state_snapshot: state,
+  };
+}
+
 /**
  * Get the holding message to send to the guest while Sanad takes over.
  * @param {import('./state').ConversationState} state
@@ -335,6 +441,7 @@ function _getSanadOptions(state) {
 
 module.exports = {
   buildHandoffAlert,
+  buildConfirmationEmail,
   getHoldingMessage,
   resumeAfterHandoff,
   SANAD_DECISIONS,

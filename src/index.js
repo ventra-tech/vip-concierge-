@@ -8,7 +8,7 @@ const { getSession, saveSession } = require('./sessionStore');
 const { detectGender } = require('./genderDetector');
 const { classifyMessage } = require('./router');
 const { decideNextAction } = require('./bookingLogic');
-const { buildHandoffAlert, getHoldingMessage } = require('./handoffLogic');
+const { buildHandoffAlert, buildConfirmationEmail, getHoldingMessage } = require('./handoffLogic');
 const { composeReply } = require('./persona/toneComposer');
 const { logEvent, logHandoff, logConfirmation, logMessageReceived } = require('./analytics/logger');
 const { updateState } = require('./state');
@@ -137,10 +137,12 @@ async function processMessage(manyChatBody) {
   const updatedHistory = _addToHistory(state, 'assistant', replyText);
   state = { ...state, conversation_history: updatedHistory };
 
-  // ── 12. Log confirmation if applicable ──
+  // ── 12. Log confirmation + send Sanad notification email ──
   let analyticsEvent;
   if (action === 'confirm') {
     analyticsEvent = logConfirmation(state);
+    // Push confirmation email action so n8n sends Sanad a booking notification
+    actions.push(buildConfirmationEmail(state));
   } else {
     analyticsEvent = logEvent('message_processed', state, { action });
   }
