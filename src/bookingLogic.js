@@ -132,6 +132,7 @@ function mergeRouterIntoState(state, routerOutput, intent) {
       .map(p => p
         .replace(/@[\w.]+/g, '')                                           // strip @handles
         .replace(/(?:https?:\/\/)?(?:www\.)?instagram\.com\/\S+/gi, '')    // strip instagram links
+        .replace(/\b\+?[\d\s\-()]{7,}\b/g, '')                            // strip phone numbers
         .replace(/^\d+[.)]\s*/, '')                                        // strip list numbers "1. "
         .replace(/^[-–—|:,]\s*/, '')                                       // strip leading separators
         .replace(/\s*[-–—|:,]+\s*$/, '')                                   // strip trailing separators
@@ -153,9 +154,16 @@ function mergeRouterIntoState(state, routerOutput, intent) {
     updates.collected_instagrams = merged;
   }
 
-  // Capture phone number if provided
+  // Capture phone number if provided — LLM first, then deterministic fallback
   if (routerOutput.phoneNumber && !state.phone_number) {
     updates.phone_number = routerOutput.phoneNumber;
+  } else if (!state.phone_number && !updates.phone_number && routerOutput.rawText) {
+    // Fallback: extract phone deterministically from raw text
+    // Matches UK/international numbers: 07xxx, +447xxx, 447xxx, etc.
+    const phoneMatch = routerOutput.rawText.match(/\b(\+?[\d][\d\s\-()]{8,}[\d])\b/);
+    if (phoneMatch) {
+      updates.phone_number = phoneMatch[1].replace(/[\s\-()]/g, '');
+    }
   }
 
   // ── Post-processing: reconcile state ──
