@@ -111,11 +111,6 @@ function mergeRouterIntoState(state, routerOutput, intent) {
     }
   }
 
-  // Only trust the LLM's explicit nightType extraction — no deterministic fallback.
-  // Casual mentions like "what's lit tonight" don't mean they're coming tonight.
-  // The bot always asks explicitly to confirm the night.
-  if (routerOutput.nightType !== null) updates.night_type = routerOutput.nightType;
-
   // Collect names — ONLY when the flow has reached the names stage.
   // Raw capture: just take whatever they typed, split by comma/newline.
   // No name-regex validation — simpler and more reliable.
@@ -123,6 +118,16 @@ function mergeRouterIntoState(state, routerOutput, intent) {
   // If we used the post-update state, answering "next weekend please" would
   // set night_type → make names the next need → wrongly capture "next weekend please" as a name.
   const prevNeed = getNextMissingField(state);
+
+  // Only store nightType when:
+  //   a) We're actively asking for it (prevNeed === 'night_type'), OR
+  //   b) The user has explicitly expressed a booking intent ('table'/'guestlist')
+  // This prevents casual mentions like "what's lit tonight?" from skipping the
+  // explicit night confirmation step — they may mean a completely different night.
+  const isExplicitBookingIntent = ['table', 'guestlist'].includes(intent);
+  if (routerOutput.nightType !== null && (prevNeed === 'night_type' || isExplicitBookingIntent)) {
+    updates.night_type = routerOutput.nightType;
+  }
   const namesExpected =
     prevNeed === 'full_names' ||
     prevNeed === 'full_name_for_table' ||
