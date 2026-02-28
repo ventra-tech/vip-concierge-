@@ -323,22 +323,55 @@ async function composeReply({
       break;
     }
 
-    // ── Guaranteed min spend ask — never let the LLM skip this ──
-    case 'ask_question':
-      if (missingField === 'full_name_for_table') {
-        const tMin = tableMinimum || (state.group_size ? getTableMinimum(state.group_size, state.night_type) : null);
-        const isMale = state.detected_gender === 'male';
-        const minText = tMin ? `Min spend is ${tMin.label}` : null;
-        if (isMale) {
-          return minText
-            ? `Easy 🍾 ${minText} for your group. Drop me your full name and number and I'll get it sorted`
-            : `Easy 🍾 Drop me your full name and number and I'll get it sorted`;
+    // ── Hardcoded flow questions — LLM cannot be trusted to follow these instructions ──
+    case 'ask_question': {
+      const _g = state.detected_gender;
+      const _male = _g === 'male';
+      const _female = _g === 'female';
+
+      switch (missingField) {
+        case 'lead_type':
+          if (_male) return `You looking to book a table bro?`;
+          if (_female) return `Hey darling x You looking for guestlist or a table?`;
+          return `You looking for guestlist or a table?`;
+
+        case 'group_size':
+          if (_male && state.last_intent === 'guestlist')
+            return `Guestlist is girls only bro 😏 but I can sort you a table no problem. How many are coming?`;
+          if (_male) return `How many of you bro?`;
+          if (_female) return `How many of you girls? x`;
+          return `How many are coming?`;
+
+        case 'night_type': {
+          const isSecondAsk = (state.night_type_asks || 0) >= 1;
+          if (!isSecondAsk) {
+            if (_male) return `What night are you thinking bro?`;
+            if (_female) return `What night are you thinking? x`;
+            return `What night are you thinking?`;
+          }
+          break; // second ask → LLM handles with weekday/weekend pricing
         }
-        return minText
-          ? `Easy 🍾 ${minText}. Send me your full name and number x`
-          : `Easy 🍾 Send me your full name and number x`;
+
+        case 'full_name_for_table': {
+          const tMin = tableMinimum || (state.group_size ? getTableMinimum(state.group_size, state.night_type) : null);
+          const minText = tMin ? `Min spend is ${tMin.label}` : null;
+          if (_male) {
+            return minText
+              ? `Easy 🍾 ${minText} for your group. Drop me your full name and number and I'll get it sorted`
+              : `Easy 🍾 Drop me your full name and number and I'll get it sorted`;
+          }
+          return minText
+            ? `Easy 🍾 ${minText}. Send me your full name and number x`
+            : `Easy 🍾 Send me your full name and number x`;
+        }
+
+        case 'phone_number':
+          if (_male) return `Drop me your number as well bro and I'll get it sorted 👊`;
+          if (_female) return `Send me your number too and I'll get you booked in x`;
+          return `Drop me your number as well and I'll get it sorted`;
       }
       break;
+    }
 
     case 'approve_guestlist':
       return guestlistApprovalAfterHandoff(state);
