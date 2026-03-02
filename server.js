@@ -19,25 +19,6 @@ const app = express();
 // Parse incoming JSON bodies
 app.use(express.json());
 
-// ─── DEDUPLICATION ────────────────────────────────────────────────────────────
-// ManyChat retries webhooks every ~10s if n8n doesn't respond fast enough.
-// This map tracks recent messages so duplicate hits are silently ignored.
-const _recentMessages = new Map();
-const DEDUP_WINDOW_MS = 30000; // 30 seconds covers all ManyChat retries
-
-function _isDuplicate(subscriberId, messageText) {
-  const key = `${subscriberId}:${messageText}`;
-  const lastSeen = _recentMessages.get(key);
-  const now = Date.now();
-  if (lastSeen && (now - lastSeen) < DEDUP_WINDOW_MS) return true;
-  _recentMessages.set(key, now);
-  // Clean up stale entries
-  for (const [k, t] of _recentMessages.entries()) {
-    if (now - t > DEDUP_WINDOW_MS) _recentMessages.delete(k);
-  }
-  return false;
-}
-
 // ─── HEALTH CHECK ─────────────────────────────────────────────────────────────
 // Railway pings this to confirm the server is running
 app.get('/health', (req, res) => {
@@ -58,13 +39,6 @@ app.post('/message', async (req, res) => {
     if (!subscriberId) {
       console.error('[server] Missing subscriber ID. Body:', JSON.stringify(body));
       return res.status(400).json({ error: 'Missing subscriber_id in payload' });
-    }
-
-    // Ignore duplicate messages — ManyChat retries webhook if response is slow
-    const messageText = body.userinput || body.last_input_text || body.text || '';
-    if (_isDuplicate(subscriberId, messageText)) {
-      console.log('[server] Duplicate ignored — subscriber:', subscriberId, '| msg:', messageText);
-      return res.json({ reply_text: null, duplicate: true });
     }
 
     const result = await processMessage(body);
