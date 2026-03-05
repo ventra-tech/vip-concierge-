@@ -113,8 +113,15 @@ function checkHandoffRequired({ messageType, messageText, state }) {
     return { required: true, reason: `other_venue_mentioned:${mentionedVenue}` };
   }
 
-  // Pre-dinner mention
-  if (lowerText.includes('pre') && (lowerText.includes('dinner') || lowerText.includes('drinks'))) {
+  // Pre-dinner booking intent — only fires when someone is planning a meal before the club.
+  // Must match specific phrases, not casual "pre drinks" questions.
+  const preDinnerPhrases = [
+    'pre dinner', 'pre-dinner', 'predinner',
+    'dinner before', 'meal before', 'eat before',
+    'restaurant before', 'dinner then', 'dinner and then',
+    'dinner first', 'food before',
+  ];
+  if (preDinnerPhrases.some(p => lowerText.includes(p))) {
     return { required: true, reason: 'pre_dinner_mentioned' };
   }
 

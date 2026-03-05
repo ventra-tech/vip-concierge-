@@ -163,38 +163,10 @@ function rejectionMessage(state) {
   return `Sorry, can't accommodate your group this time 🙏\nHope to see you at Reign another night ❤️‍🔥`;
 }
 
-// ─── REVIEW REQUEST ───────────────────────────────────────────────────────────
-
-/**
- * Post-event review ask. Emoji matches Sanad's real messages.
- * @param {'male'|'female'|'neutral'} gender
- * @returns {string}
- */
-function reviewRequest(gender) {
-  const isFemale = gender === 'female';
-  return isFemale
-    ? `Also leave a 5 star review for ${REIGN.instagram} mentioning my name and how your experience was fun 🥳`
-    : `Also leave a 5 star review for ${REIGN.instagram} mentioning my name and how your experience was fun 🥳`;
-}
-
-// ─── HELPER ───────────────────────────────────────────────────────────────────
-
-function _describeGroupNatural(state) {
-  if (state.guys !== null && state.girls !== null) {
-    if (state.guys === 0) return `${state.girls} girls`;
-    if (state.girls === 0) return `${state.guys} guys`;
-    return `${state.guys} guys + ${state.girls} girls`;
-  }
-  if (state.group_size) return `${state.group_size} people`;
-  if (state.gender_mix === 'girls' && state.girls) return `${state.girls} girls`;
-  return null;
-}
-
 module.exports = {
   guestlistConfirmation,
   tableConfirmation,
   guestlistApprovalAfterHandoff,
   pushTableAfterHandoff,
   rejectionMessage,
-  reviewRequest,
 };

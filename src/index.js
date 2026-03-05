@@ -11,7 +11,6 @@ const { decideNextAction } = require('./bookingLogic');
 const { buildHandoffAlert, buildConfirmationEmail, getHoldingMessage } = require('./handoffLogic');
 const { composeReply } = require('./persona/toneComposer');
 const { logEvent, logHandoff, logConfirmation, logMessageReceived } = require('./analytics/logger');
-const { updateState } = require('./state');
 
 // Holding messages when AI is paused — cycles sequentially, never repeats back to back
 const HOLDING_MESSAGES = [
@@ -40,6 +39,11 @@ function _addToHistory(state, role, content) {
   return history;
 }
 
+// Per-subscriber concurrency lock.
+// Prevents two concurrent ManyChat webhook fires for the same subscriber
+// from both processing simultaneously and overwriting each other's state.
+const activeRequests = new Set();
+
 /**
  * Process a single incoming ManyChat message end-to-end.
  */
@@ -48,114 +52,128 @@ async function processMessage(manyChatBody) {
   const { subscriberId, messageText, messageType, firstName, username } =
     parseIncomingPayload(manyChatBody);
 
-  // ── 2. Load session ──
-  let state = getSession(subscriberId);
-
-  // ── 3. Save user message to history ──
-  const history = _addToHistory(state, 'user', messageText || `[${messageType}]`);
-  state = { ...state, conversation_history: history };
-
-  // ── 4. Detect gender ──
-  const detectedGender = detectGender({
-    messageText,
-    username,
-    firstName,
-    existingGender: state.detected_gender,
-  });
-  state = updateState(state, {
-    detected_gender: detectedGender,
-    username: username || state.username || null,
-    first_name: firstName || state.first_name || null,
-  });
-  state = { ...state, turn_count: state.turn_count - 1 };
-
-  // ── 5. If session is paused (handoff active) — send holding message ──
-  if (state.paused) {
-    const { message: holdingReply, nextIndex } = _getHoldingWhilePaused(state);
-    // Save updated history and holding index so it never repeats
-    const updatedHistory = _addToHistory(state, 'assistant', holdingReply);
-    state = { ...state, conversation_history: updatedHistory, last_holding_index: nextIndex };
-    saveSession(subscriberId, state);
-    const analyticsEvent = logEvent('message_while_paused', state);
-    return {
-      reply_text: holdingReply,
-      updated_state: state,
-      actions: [{ type: 'PAUSED_HOLDING_REPLY', subscriberId }],
-      analytics_event: analyticsEvent,
-    };
+  // ── 2. Concurrency lock — drop duplicate concurrent requests per subscriber ──
+  // ManyChat sometimes fires the same trigger twice in rapid succession.
+  // Without this lock, both requests read the same state → both write back → one overwrites the other.
+  if (activeRequests.has(subscriberId)) {
+    return { reply_text: null, actions: [] };
   }
+  activeRequests.add(subscriberId);
 
-  // ── 6. Classify message ──
-  const routerOutput = await classifyMessage(manyChatBody, messageText);
+  try {
+    // ── 3. Load session ──
+    let state = getSession(subscriberId);
 
-  // ── DEBUG LOGGING ──
-  console.log('=== DEBUG ===');
-  console.log('MSG:', JSON.stringify(messageText));
-  console.log('EXTRACTED names:', routerOutput.names, '| instagrams:', routerOutput.instagrams, '| groupSize:', routerOutput.groupSize, '| nightType:', routerOutput.nightType);
-  console.log('STATE BEFORE: lead_type:', state.lead_type, '| gender_mix:', state.gender_mix, '| girls:', state.girls, '| night_type:', state.night_type, '| collected_names:', state.collected_names, '| collected_instagrams:', state.collected_instagrams);
+    // ── 4. Dedup guard — skip identical messages re-fired within 5 seconds ──
+    // Catches ManyChat trigger re-fires that send the same message text again.
+    const now = Date.now();
+    const DEDUP_WINDOW_MS = 5000;
+    if (
+      messageText &&
+      state.last_message_text === messageText &&
+      state.last_message_at &&
+      now - state.last_message_at < DEDUP_WINDOW_MS
+    ) {
+      return { reply_text: null, actions: [] };
+    }
+    // Stamp this message on state so the next request can dedup against it
+    state = { ...state, last_message_text: messageText || null, last_message_at: now };
 
-  // ── 7. Decide next action ──
-  const { action, updatedState, missingField, tableMinimum, eligibilityResult } =
-    decideNextAction(state, routerOutput);
+    // ── 5. Save user message to history ──
+    const history = _addToHistory(state, 'user', messageText || `[${messageType}]`);
+    state = { ...state, conversation_history: history };
 
-  state = updatedState;
+    // ── 6. Detect gender — direct spread, no turn_count bump ──
+    const detectedGender = detectGender({
+      messageText,
+      username,
+      firstName,
+      existingGender: state.detected_gender,
+    });
+    state = {
+      ...state,
+      detected_gender: detectedGender,
+      username: username || state.username || null,
+      first_name: firstName || state.first_name || null,
+    };
 
-  console.log('ACTION:', action, '| missingField:', missingField);
-  console.log('STATE AFTER: gender_mix:', state.gender_mix, '| girls:', state.girls, '| night_type:', state.night_type, '| collected_names:', state.collected_names, '| collected_instagrams:', state.collected_instagrams);
-  console.log('=============');
+    // ── 7. If session is paused (handoff active) — send holding message ──
+    if (state.paused) {
+      const { message: holdingReply, nextIndex } = _getHoldingWhilePaused(state);
+      // Save updated history and holding index so it never repeats
+      const updatedHistory = _addToHistory(state, 'assistant', holdingReply);
+      state = { ...state, conversation_history: updatedHistory, last_holding_index: nextIndex };
+      saveSession(subscriberId, state);
+      logEvent('message_while_paused', state);
+      return {
+        reply_text: holdingReply,
+        actions: [{ type: 'PAUSED_HOLDING_REPLY', subscriberId }],
+      };
+    }
 
-  // ── 8. Log message received ──
-  logMessageReceived(state, routerOutput.intent);
+    // ── 8. Classify message ──
+    const routerOutput = await classifyMessage(manyChatBody, messageText);
 
-  // ── 9. Handle handoff ──
-  const actions = [];
-  let replyText;
+    // ── 9. Decide next action ──
+    const { action, updatedState, missingField, tableMinimum, eligibilityResult } =
+      decideNextAction(state, routerOutput);
 
-  if (action === 'handoff') {
-    const handoffAlert = buildHandoffAlert(state);
-    actions.push(handoffAlert);
-    replyText = getHoldingMessage(state);
-    // Save bot reply to history
+    state = updatedState;
+
+    // ── 10. Log message received ──
+    logMessageReceived(state, routerOutput.intent);
+
+    // ── 11. Handle handoff ──
+    const actions = [];
+    let replyText;
+
+    if (action === 'handoff') {
+      const handoffAlert = buildHandoffAlert(state);
+      actions.push(handoffAlert);
+      replyText = getHoldingMessage(state);
+      // Save bot reply to history
+      const updatedHistory = _addToHistory(state, 'assistant', replyText);
+      state = { ...state, conversation_history: updatedHistory };
+      saveSession(subscriberId, state);
+      logHandoff(state);
+      return { reply_text: replyText, actions };
+    }
+
+    // ── 12. Compose reply ──
+    replyText = await composeReply({
+      action,
+      state,
+      missingField,
+      tableMinimum,
+      eligibilityResult,
+      rawUserMessage: messageText,
+    });
+
+    // ── 13. Save bot reply to history ──
     const updatedHistory = _addToHistory(state, 'assistant', replyText);
     state = { ...state, conversation_history: updatedHistory };
+
+    // ── 14. Log confirmation + send Sanad notification email ──
+    if (action === 'confirm') {
+      logConfirmation(state);
+      // Push confirmation email action so n8n sends Sanad a booking notification
+      actions.push(buildConfirmationEmail(state));
+    } else {
+      logEvent('message_processed', state, { action });
+    }
+
+    // ── 15. Save session ──
     saveSession(subscriberId, state);
-    const analyticsEvent = logHandoff(state);
-    return { reply_text: replyText, updated_state: state, actions, analytics_event: analyticsEvent };
+
+    return {
+      reply_text: replyText,
+      actions,
+    };
+
+  } finally {
+    // Always release the lock — even if an error is thrown
+    activeRequests.delete(subscriberId);
   }
-
-  // ── 10. Compose reply ──
-  replyText = await composeReply({
-    action,
-    state,
-    missingField,
-    tableMinimum,
-    eligibilityResult,
-    rawUserMessage: messageText,
-  });
-
-  // ── 11. Save bot reply to history ──
-  const updatedHistory = _addToHistory(state, 'assistant', replyText);
-  state = { ...state, conversation_history: updatedHistory };
-
-  // ── 12. Log confirmation + send Sanad notification email ──
-  let analyticsEvent;
-  if (action === 'confirm') {
-    analyticsEvent = logConfirmation(state);
-    // Push confirmation email action so n8n sends Sanad a booking notification
-    actions.push(buildConfirmationEmail(state));
-  } else {
-    analyticsEvent = logEvent('message_processed', state, { action });
-  }
-
-  // ── 13. Save session ──
-  saveSession(subscriberId, state);
-
-  return {
-    reply_text: replyText,
-    updated_state: state,
-    actions,
-    analytics_event: analyticsEvent,
-  };
 }
 
 /**

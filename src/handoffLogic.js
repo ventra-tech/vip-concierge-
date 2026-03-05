@@ -350,6 +350,9 @@ function getHoldingMessage(state) {
   if (reason.includes('ratio') || reason.includes('borderline')) {
     return "Let me check this for you bro 👀 I'll confirm shortly";
   }
+  if (reason === 'male_guestlist_redirect') {
+    return "Let me check with the owner and I'll get back to you shortly 👀";
+  }
   if (reason.includes('large_table') || reason.includes('pre_dinner')) {
     return "Love that 🍾 Let me put something together for you — I'll be back shortly";
   }
@@ -432,6 +435,7 @@ function formatHandoffReason(reason) {
     image_message_received: '📸 Image received',
     video_message_received: '🎥 Video received',
     large_table_group: '🍾 Large group table request (5+)',
+    male_guestlist_redirect: '👤 Male/mixed group redirected from guestlist — Sanad to decide',
     pre_dinner_mentioned: '🍽️ Pre-dinner mentioned',
     ratio_unclear: '❓ Guy ratio unclear',
     ratio_insufficient_weekend: '❌ Ratio not met (weekend)',

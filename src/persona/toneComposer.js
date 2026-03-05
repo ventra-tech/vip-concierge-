@@ -176,28 +176,9 @@ function buildInstruction(action, missingField, state, tableMinimum) {
 
   switch (action) {
     case 'rapport':
-      if (state.status === 'confirmed') {
-        return `The booking is already confirmed and complete. The guest is just saying thanks or chatting. Respond with a short, warm closing — like "Amazing see you there! x" or "Can't wait 🥂". Do NOT repeat booking details or send any confirmation info.`;
-      }
-      {
-        // Rotating openers — randomly pick one each time for variation
-        const maleOpeners = [
-          `Yoo bro 😏 you came to the right place trust. What's the occasion?`,
-          `Yo bro 🔥 good timing. What's the occasion?`,
-        ];
-        const femaleOpeners = [
-          `Heyy gorgeous 🥂 you came to the right place trust me. What's the occasion? x`,
-          `Heyyy darling 🥂 so glad you reached out. What's the occasion? x`,
-        ];
-        const neutralOpeners = [
-          `Yoo 😏 you came to the right place trust. What's the occasion?`,
-          `Yoo 🔥 good timing. What's the occasion?`,
-        ];
-        const gender = state.detected_gender;
-        const pool = gender === 'male' ? maleOpeners : gender === 'female' ? femaleOpeners : neutralOpeners;
-        const opener = pool[Math.floor(Math.random() * pool.length)];
-        return `New guest just reached out. Use this exact opener and nothing else: "${opener}"`;
-      }
+      // Only reaches LLM when status === 'confirmed' (post-booking chat).
+      // The opening turn is handled by the hardcoded block in composeReply.
+      return `The booking is already confirmed and complete. The guest is just saying thanks or chatting. Respond with a short, warm closing — like "Amazing see you there! x" or "Can't wait 🥂". Do NOT repeat booking details or send any confirmation info.`;
 
     case 'ask_question':
       switch (missingField) {
@@ -217,19 +198,8 @@ function buildInstruction(action, missingField, state, tableMinimum) {
           return `You need to confirm what night they're planning to come. Even if they casually mentioned "tonight" — always ask explicitly, because they might mean a different night (e.g. someone asks "what's lit tonight" but is actually planning for the weekend). Ask something like "What night are you thinking?" Keep it short and casual. Do NOT ask for names or phone number yet.`;
         }
         case 'group_size':
-          // Male who just asked about guestlist — redirect naturally before asking size
-          if (isMale && state.last_intent === 'guestlist') {
-            return `Tell them the guestlist is girls only bro, but you can sort them a table no problem. Ask how many are looking to come. Keep it short.`;
-          }
-          // IMPORTANT: lead type is already confirmed (${state.lead_type || 'table/guestlist'}) — do NOT ask about guestlist vs table again.
-          // Your only job is to ask how many people are coming. One short question, nothing else.
-          return `Ask how many people are coming. ONLY ask this — do not mention guestlist or table. Keep it casual and very short, like "How many of you?" or "How many are coming?"`;
-        case 'group_composition':
-          return `Ask how many guys and how many girls are in the group.`;
-        case 'guys_count':
-          return `Ask how many guys are in the group.`;
-        case 'girls_count':
-          return `Ask how many girls are in the group.`;
+          // Hardcoded in composeReply — only reaches LLM on neutral gender with no redirect.
+          return `Ask how many people are coming. One short question only, like "How many of you?" or "How many are coming?"`;
         case 'full_names':
           return `They're interested in the guestlist for ${night}. Ask for everyone's full names and Instagram handles so you can book them on your guestlist.`;
         case 'instagram_handles':
@@ -253,31 +223,6 @@ function buildInstruction(action, missingField, state, tableMinimum) {
 
     case 'birthday_acknowledgement':
       return `The guest mentioned a birthday or special occasion. Respond with genuine excitement — make them feel special.`;
-
-    case 'handoff': {
-      const reason = state.handoff_reason || '';
-      // Guy asking about guestlist — must be told it's girls only, then pivoted to table
-      if (isMale && (state.last_intent === 'guestlist' || reason === 'large_table_group')) {
-        return `Tell them guestlist is strictly girls only, but a table is no problem for the group. Let them know you're going to check with the owner and will get back to them shortly.`;
-      }
-      // Large table group (any gender)
-      if (reason === 'large_table_group') {
-        return `Let them know it's a bigger group so you want to check with the owner first. Tell them you'll get back to them very shortly to sort it.`;
-      }
-      // Voice / image message
-      if (reason.includes('voice') || reason.includes('image') || reason.includes('video')) {
-        return `Acknowledge their message and let them know you'll get back to them shortly.`;
-      }
-      // Other venue mentioned
-      if (reason.includes('other_venue')) {
-        return `Respond naturally and steer the conversation back to Reign.`;
-      }
-      // Generic fallback
-      return `Let the guest know you're sorting it and will get back to them very shortly. Keep it casual and reassuring.`;
-    }
-
-    case 'holding':
-      return `Let the guest know you're sorting it for them right now. Keep it super short and natural.`;
 
     default:
       return `Continue the conversation naturally based on the context.`;
@@ -336,8 +281,11 @@ async function composeReply({
           return `You looking for guestlist or a table?`;
 
         case 'group_size':
-          if (_male && state.last_intent === 'guestlist')
-            return `Guestlist is girls only bro 😏 but I can sort you a table no problem. How many are coming?`;
+          if (state.male_guestlist_redirect) {
+            return _male
+              ? `Guestlist is girls only bro 😏 but I can sort you a table no problem. How many are coming?`
+              : `So guestlist is for girls only x For a mixed group I can sort a table instead. How many are coming in total?`;
+          }
           if (_male) return `How many of you bro?`;
           if (_female) return `How many of you girls? x`;
           return `How many are coming?`;

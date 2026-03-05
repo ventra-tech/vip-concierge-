@@ -14,7 +14,6 @@
  */
 
 const {
-  evaluateGuestlistEligibility,
   getTableMinimum,
   checkHandoffRequired,
 } = require('./policy/reign');
@@ -80,8 +79,15 @@ function mergeRouterIntoState(state, routerOutput, intent) {
     updates.gender_mix = 'girls';
   }
 
-  // Males always go straight to table — guestlist is girls only
-  if (currentGender === 'male' && (state.lead_type === 'unknown' || state.lead_type === null)) {
+  // Guestlist → table redirect for males and mixed groups.
+  // Set male_guestlist_redirect so _handleTableFlow handoffs instead of auto-confirming.
+  const isOnGuestlistPath = intent === 'guestlist' || mergedLeadType === 'guestlist';
+  const hasGuys = currentGender === 'male' || (routerOutput.guys !== null && routerOutput.guys > 0);
+  if (isOnGuestlistPath && hasGuys && !state.male_guestlist_redirect) {
+    updates.lead_type = 'table';
+    updates.male_guestlist_redirect = true;
+  } else if (currentGender === 'male' && (state.lead_type === 'unknown' || state.lead_type === null) && !updates.lead_type) {
+    // Male opening with table/unknown intent — go to table but no redirect flag needed
     updates.lead_type = 'table';
   }
 
@@ -330,8 +336,10 @@ function _handleGuestlistFlow(state) {
     return { action: 'rapport', updatedState: state, missingField: null, tableMinimum: null, eligibilityResult: null };
   }
 
-  // Guestlist is always girls only — force this in state
-  let s = updateState(state, { guys: 0, gender_mix: 'girls' });
+  // Guestlist is always girls only — force this in state.
+  // Direct spread instead of updateState() — avoids a second turn_count increment
+  // (mergeRouterIntoState already called updateState once this turn).
+  let s = { ...state, guys: 0, gender_mix: 'girls' };
 
   // Anti-loop: if about to ask night_type again, default it
   if (getNextMissingField(s) === 'night_type') {
@@ -381,6 +389,12 @@ function _handleTableFlow(state) {
 
     if (missingField) {
       return { action: 'ask_question', updatedState: s, missingField, tableMinimum: tableMin, eligibilityResult: null };
+    }
+
+    // Male/mixed group redirected from guestlist — Sanad must approve before confirming
+    if (s.male_guestlist_redirect) {
+      const updated = updateState(s, { status: 'handoff', handoff_reason: 'male_guestlist_redirect', paused: true });
+      return { action: 'handoff', updatedState: updated, missingField: null, tableMinimum: tableMin, eligibilityResult: null };
     }
 
     const confirmed = updateState(s, { status: 'confirmed' });

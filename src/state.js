@@ -61,6 +61,9 @@ function createState(subscriberId) {
     night_type_asks: 0, // How many times we've asked for night_type — anti-loop counter
     estimated_value: null,
     last_holding_index: -1, // Tracks holding message rotation when paused
+    male_guestlist_redirect: false, // Male asked about guestlist — collect table info then handoff to Sanad
+    last_message_text: null,        // Dedup guard: text of last processed message
+    last_message_at: null,          // Dedup guard: epoch ms of last processed message
   };
 }
 

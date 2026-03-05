@@ -10,7 +10,6 @@
  *   5. LLM fallback ONLY when keywords produce no match
  */
 
-const { callLLM } = require('./llm/provider');
 const { detectNightType } = require('./policy/reign');
 
 // ─── INTENT KEYWORD MAP ──────────────────────────────────────────────────────
@@ -22,7 +21,7 @@ const INTENT_KEYWORDS = {
     'can i come', 'get in', 'getting in', 'entry', 'free entry',
   ],
   table: [
-    'table', 'vip', 'bottle', 'bottles', 'min spend', 'minimum spend',
+    'table', 'bottle', 'bottles', 'min spend', 'minimum spend',
     'booth', 'reserve', 'reservation', 'book a table', 'vip table',
     'private table', 'section',
   ],
@@ -74,7 +73,7 @@ function keywordClassify(text) {
   const lower = text.toLowerCase();
 
   // Check each intent in priority order
-  const priorityOrder = ['table', 'guestlist', 'birthday', 'confirmation', 'objection', 'question'];
+  const priorityOrder = ['guestlist', 'table', 'birthday', 'confirmation', 'objection', 'question'];
 
   for (const intent of priorityOrder) {
     const keywords = INTENT_KEYWORDS[intent];
@@ -363,39 +362,6 @@ function extractNightType(text) {
   return null;
 }
 
-// ─── LLM FALLBACK CLASSIFICATION ─────────────────────────────────────────────
-
-/**
- * Ask LLM to classify intent when keywords produce no match.
- * Returns one of the valid intent strings.
- * @param {string} text
- * @returns {Promise<string>}
- */
-async function llmClassifyIntent(text) {
-  const prompt = `You are classifying an Instagram DM sent to a London nightclub.
-Classify this message into EXACTLY one of these intents:
-- guestlist (wants to get on the guest list)
-- table (wants a VIP table / bottle service)
-- question (asking about venue, price, dress code, location, etc.)
-- objection (pushing back on price, conditions, or declining)
-- birthday (mentioning a birthday or celebration)
-- confirmation (saying yes / agreeing to proceed)
-- unknown (cannot determine)
-
-Message: "${text}"
-
-Reply with only the intent word, nothing else.`;
-
-  try {
-    const result = await callLLM([{ role: 'user', content: prompt }], { maxTokens: 10 });
-    const intent = result.trim().toLowerCase();
-    const validIntents = ['guestlist', 'table', 'question', 'objection', 'birthday', 'confirmation', 'unknown'];
-    return validIntents.includes(intent) ? intent : 'unknown';
-  } catch {
-    return 'unknown';
-  }
-}
-
 // ─── MAIN ROUTER FUNCTION ─────────────────────────────────────────────────────
 
 /**
@@ -413,7 +379,7 @@ Reply with only the intent word, nothing else.`;
  *   classifiedBy: 'keyword'|'llm'
  * }>}
  */
-async function classifyMessage(manyChatPayload, messageText) {
+function classifyMessage(manyChatPayload, messageText) {
   const messageType = detectMessageType(manyChatPayload);
   const text = messageText || '';
 
@@ -431,12 +397,9 @@ async function classifyMessage(manyChatPayload, messageText) {
     };
   }
 
-  // Step 1: try keyword match (fast, free, deterministic)
-  const keywordIntent = keywordClassify(text);
-  const classifiedBy = keywordIntent ? 'keyword' : 'llm';
-
-  // Step 2: LLM fallback only if keywords failed
-  const intent = keywordIntent || (await llmClassifyIntent(text));
+  // Keyword match — fast and free. Falls back to 'unknown' if no match.
+  const intent = keywordClassify(text) || 'unknown';
+  const classifiedBy = intent !== 'unknown' ? 'keyword' : 'none';
 
   // Step 3: extract numbers, date signals, names, Instagram handles, phone numbers
   const { groupSize, guys, girls } = extractNumbers(text);
