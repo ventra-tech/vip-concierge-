@@ -17,7 +17,7 @@ const { calculateBookingValue } = require('./policy/reign');
  * @returns {object} Action payload
  */
 function buildHandoffAlert(state) {
-  const baseUrl = 'https://vip-concierge-production.up.railway.app';
+  const baseUrl = 'https://vip-concierge-production-cc26.up.railway.app';
   const sid = state.subscriberId;
   const displayName = state.username
     ? `@${state.username}`
