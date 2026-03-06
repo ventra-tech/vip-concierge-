@@ -166,6 +166,8 @@ You: We keep the menu exclusive darling x You'll see everything when you're insi
 
 // ─── INSTRUCTION BUILDER ──────────────────────────────────────────────────────
 // Tells the LLM exactly what it needs to do next, in plain English.
+// Includes a context summary of what's already been collected so the LLM
+// can handle mid-flow curveballs naturally.
 
 function buildInstruction(action, missingField, state, tableMinimum) {
   const night = state.night_type === 'weekend' ? 'this weekend'
@@ -173,6 +175,26 @@ function buildInstruction(action, missingField, state, tableMinimum) {
     : state.night_type || 'tonight';
 
   const isMale = state.detected_gender === 'male';
+  const isFemale = state.detected_gender === 'female';
+
+  // ── Build a plain-English summary of what's already known ──
+  const knownParts = [];
+  if (state.lead_type) knownParts.push(`they want a ${state.lead_type}`);
+  if (state.group_size) knownParts.push(`group of ${state.group_size}`);
+  if (state.guys != null) knownParts.push(`${state.guys} guy(s)`);
+  if (state.girls != null) knownParts.push(`${state.girls} girl(s)`);
+  if (state.night_type) knownParts.push(`coming ${night}`);
+  if (state.full_name) knownParts.push(`name: ${state.full_name}`);
+  if (state.phone_number) knownParts.push(`phone: ${state.phone_number}`);
+  if (state.collected_names && state.collected_names.length > 0) {
+    knownParts.push(`names collected: ${state.collected_names.join(', ')}`);
+  }
+  if (state.collected_handles && state.collected_handles.length > 0) {
+    knownParts.push(`handles collected: ${state.collected_handles.join(', ')}`);
+  }
+  const context = knownParts.length > 0
+    ? `What you already know: ${knownParts.join(', ')}. `
+    : '';
 
   switch (action) {
     case 'rapport':
@@ -183,36 +205,49 @@ function buildInstruction(action, missingField, state, tableMinimum) {
     case 'ask_question':
       switch (missingField) {
         case 'lead_type':
-          return isMale
-            ? `Ask if they want to book a table.`
-            : `Ask if they want guestlist or a table.`;
+          if (isMale) return `${context}The guest hasn't said what they want yet. For guys, guestlist is girls-only — naturally steer them towards a table. Ask if they're looking to book a table. Keep it casual, one line.`;
+          return `${context}Ask if they want guestlist or a table. Keep it short.`;
+
+        case 'group_size': {
+          if (state.male_guestlist_redirect) {
+            return isMale
+              ? `${context}The guest asked about guestlist but guestlist is girls only. Explain this naturally and let them know you can sort them a table no problem. Ask how many are coming in total.`
+              : `${context}The guest asked about guestlist but this is a mixed group. Explain guestlist is girls only and you can sort a table for the group instead. Ask how many are coming in total.`;
+          }
+          return `${context}Ask how many people are coming. One short question only.`;
+        }
+
         case 'night_type': {
           const isSecondAsk = (state.night_type_asks || 0) >= 2;
           if (isSecondAsk && state.lead_type === 'table' && state.group_size) {
             const weekendMin = getTableMinimum(state.group_size, 'weekend');
             const weekdayMin = getTableMinimum(state.group_size, 'weekday');
             if (weekdayMin.min !== weekendMin.min) {
-              return `They weren't sure about the night. Let them know the min spend is ${weekdayMin.label} on a weekday or ${weekendMin.label} on a weekend, and ask which they're leaning towards. Keep it casual and short.`;
+              return `${context}They haven't confirmed the night yet. Let them know the min spend is ${weekdayMin.label} on a weekday or ${weekendMin.label} on a weekend, and ask which they're leaning towards. Casual and short.`;
             }
           }
-          return `You need to confirm what night they're planning to come. Even if they casually mentioned "tonight" — always ask explicitly, because they might mean a different night (e.g. someone asks "what's lit tonight" but is actually planning for the weekend). Ask something like "What night are you thinking?" Keep it short and casual. Do NOT ask for names or phone number yet.`;
+          return `${context}Ask what night they're planning to come. Short and casual — something like "What night are you thinking?" Do NOT ask for names or phone number yet.`;
         }
-        case 'group_size':
-          // Hardcoded in composeReply — only reaches LLM on neutral gender with no redirect.
-          return `Ask how many people are coming. One short question only, like "How many of you?" or "How many are coming?"`;
+
         case 'full_names':
-          return `They're interested in the guestlist for ${night}. Ask for everyone's full names and Instagram handles so you can book them on your guestlist.`;
+          return `${context}They're interested in guestlist for ${night}. Ask for everyone's full names and Instagram handles so you can get them on the guestlist.`;
+
         case 'instagram_handles':
-          return `You have their names but still need their Instagram handles. Ask for those — it's needed to add them to the guestlist.`;
+          return `${context}You have their names but still need their Instagram handles. Ask for those — it's needed to verify them on the door.`;
+
         case 'full_name_for_table': {
           const tMin = tableMinimum || (state.group_size ? getTableMinimum(state.group_size, state.night_type) : null);
-          const minText = tMin ? ` Minimum spend is ${tMin.label}.` : '';
-          return `They want to book a table.${minText} Ask for their full name for the booking and their UK phone number (mention UK numbers only — +44 or 07xxx format).`;
+          const minText = tMin ? ` Min spend is ${tMin.label}.` : '';
+          return `${context}They're ready to book a table.${minText} Ask for their full name for the booking and their UK phone number (+44 or 07xxx format). Ask for both in one message.`;
         }
-        case 'phone_number':
-          return `You have their name but still need their UK phone number to add them to the group chat with the owner. Mention UK numbers only (+44 or 07xxx).`;
+
+        case 'phone_number': {
+          const nameStr = state.full_name ? `You already have their name (${state.full_name}). ` : '';
+          return `${context}${nameStr}Still need their UK phone number to add them to the group chat with the owner. Ask for it — mention UK numbers only (+44 or 07xxx).`;
+        }
+
         default:
-          return `Continue the conversation naturally and gather the missing information: ${missingField}.`;
+          return `${context}Continue naturally and gather the missing info: ${missingField}.`;
       }
 
     case 'answer_question':
@@ -239,14 +274,14 @@ async function composeReply({
   eligibilityResult,
   rawUserMessage,
 }) {
-  // ── Templates ONLY for booking confirmations — these need precise data ──
+  // ── Templates ONLY for booking confirmations — exact data accuracy required ──
   switch (action) {
     case 'confirm':
       if (state.lead_type === 'guestlist') return guestlistConfirmation(state);
       if (state.lead_type === 'table') return tableConfirmation(state, tableMinimum);
       break;
 
-    // ── Hardcoded rapport opener — prevents LLM going off-script on turn 1 ──
+    // ── Hardcoded rapport opener — LLM has zero context on turn 1 ──
     case 'rapport': {
       if (state.status !== 'confirmed') {
         const gender = state.detected_gender;
@@ -268,59 +303,7 @@ async function composeReply({
       break;
     }
 
-    // ── Hardcoded flow questions — LLM cannot be trusted to follow these instructions ──
-    case 'ask_question': {
-      const _g = state.detected_gender;
-      const _male = _g === 'male';
-      const _female = _g === 'female';
-
-      switch (missingField) {
-        case 'lead_type':
-          if (_male) return `You looking to book a table bro?`;
-          if (_female) return `Hey darling x You looking for guestlist or a table?`;
-          return `You looking for guestlist or a table?`;
-
-        case 'group_size':
-          if (state.male_guestlist_redirect) {
-            return _male
-              ? `Guestlist is girls only bro 😏 but I can sort you a table no problem. How many are coming?`
-              : `So guestlist is for girls only x For a mixed group I can sort a table instead. How many are coming in total?`;
-          }
-          if (_male) return `How many of you bro?`;
-          if (_female) return `How many of you girls? x`;
-          return `How many are coming?`;
-
-        case 'night_type': {
-          const isSecondAsk = (state.night_type_asks || 0) >= 2;
-          if (!isSecondAsk) {
-            if (_male) return `What night are you thinking bro?`;
-            if (_female) return `What night are you thinking? x`;
-            return `What night are you thinking?`;
-          }
-          break; // second ask → LLM handles with weekday/weekend pricing
-        }
-
-        case 'full_name_for_table': {
-          const tMin = tableMinimum || (state.group_size ? getTableMinimum(state.group_size, state.night_type) : null);
-          const minText = tMin ? `Min spend is ${tMin.label}` : null;
-          if (_male) {
-            return minText
-              ? `Easy 🍾 ${minText} for your group. Drop me your full name and number and I'll get it sorted`
-              : `Easy 🍾 Drop me your full name and number and I'll get it sorted`;
-          }
-          return minText
-            ? `Easy 🍾 ${minText}. Send me your full name and number x`
-            : `Easy 🍾 Send me your full name and number x`;
-        }
-
-        case 'phone_number':
-          if (_male) return `Drop me your number as well bro and I'll get it sorted 👊`;
-          if (_female) return `Send me your number too and I'll get you booked in x`;
-          return `Drop me your number as well and I'll get it sorted`;
-      }
-      break;
-    }
-
+    // ── Post-handoff Sanad actions — these need to be precise ──
     case 'approve_guestlist':
       return guestlistApprovalAfterHandoff(state);
 
@@ -333,7 +316,7 @@ async function composeReply({
       return rejectionMessage(state);
   }
 
-  // ── Everything else — LLM with full conversation history ──
+  // ── Everything else — LLM with full conversation history and rich instruction ──
   return _llmCompose({ action, state, missingField, tableMinimum, rawUserMessage });
 }
 
