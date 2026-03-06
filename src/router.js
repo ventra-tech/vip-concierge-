@@ -98,13 +98,20 @@ function extractNumbers(text) {
   let girls = null;
   let groupSize = null;
 
-  // Pattern: "X guys" / "X lads" / "X men" / "X males"
-  const guysMatch = lower.match(/(\d+)\s*(guy|guys|lad|lads|man|men|male|males|bro|bros)/);
+  // Pattern: "X guys" / "X lads" / "X men" / "X males" / "X boys"
+  const guysMatch = lower.match(/(\d+)\s*(guy|guys|lad|lads|man|men|male|males|bro|bros|boy|boys)/);
   if (guysMatch) guys = parseInt(guysMatch[1], 10);
 
   // Pattern: "X girls" / "X females" / "X women" / "X of my girls" / "X of us girls"
   const girlsMatch = lower.match(/(\d+)\s*(?:of\s+(?:my|us|the)\s+)?(girl|girls|female|females|woman|women|lady|ladies)/);
   if (girlsMatch) girls = parseInt(girlsMatch[1], 10);
+
+  // Pattern: "me and X" — total group = X + 1 (the person themselves + X others)
+  // e.g. "me and 3 of my boys" = 4 people total
+  const meAndMatch = lower.match(/\bme\s+and\s+(\d+)\b/);
+  if (meAndMatch && groupSize === null) {
+    groupSize = parseInt(meAndMatch[1], 10) + 1;
+  }
 
   // Pattern: "X of my girls" / "X of my mates" at start or anywhere
   const ofMyMatch = lower.match(/(\d+)\s+of\s+my\s+(girl|girls|mate|mates|friend|friends|lad|lads|guy|guys)/);
@@ -168,6 +175,12 @@ function extractNumbers(text) {
   if (guys !== null && girls !== null && groupSize === null) {
     groupSize = guys + girls;
   }
+
+  // Sanity check: any number above 30 is almost certainly a phone number or typo, not a group size
+  const MAX_GROUP = 30;
+  if (groupSize !== null && groupSize > MAX_GROUP) groupSize = null;
+  if (guys !== null && guys > MAX_GROUP) guys = null;
+  if (girls !== null && girls > MAX_GROUP) girls = null;
 
   // If only group size, can't split — leave guys/girls null
   return { groupSize, guys, girls };

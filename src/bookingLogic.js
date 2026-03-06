@@ -154,9 +154,14 @@ function mergeRouterIntoState(state, routerOutput, intent) {
       )
       .filter(p => p.length > 1);                                          // drop empty/single-char
 
-    if (rawParts.length > 0) {
+    // Only store text that actually looks like a name (2–3 words, letters only).
+    // This blocks sentences like "can we be on the guestlist instead" from being
+    // saved as a collected name when the user goes off-script mid-flow.
+    const NAME_LIKE = /^[A-Za-z]+([-'][A-Za-z]+)?(\s+[A-Za-z]+([-'][A-Za-z]+)?){1,2}$/;
+    const validNames = rawParts.filter(p => NAME_LIKE.test(p));
+    if (validNames.length > 0) {
       const existing = state.collected_names || [];
-      const merged = [...new Set([...existing, ...rawParts])];
+      const merged = [...new Set([...existing, ...validNames])];
       updates.collected_names = merged;
     }
   }
