@@ -187,7 +187,7 @@ function buildInstruction(action, missingField, state, tableMinimum) {
             ? `Ask if they want to book a table.`
             : `Ask if they want guestlist or a table.`;
         case 'night_type': {
-          const isSecondAsk = (state.night_type_asks || 0) >= 1;
+          const isSecondAsk = (state.night_type_asks || 0) >= 2;
           if (isSecondAsk && state.lead_type === 'table' && state.group_size) {
             const weekendMin = getTableMinimum(state.group_size, 'weekend');
             const weekdayMin = getTableMinimum(state.group_size, 'weekday');
@@ -291,7 +291,7 @@ async function composeReply({
           return `How many are coming?`;
 
         case 'night_type': {
-          const isSecondAsk = (state.night_type_asks || 0) >= 1;
+          const isSecondAsk = (state.night_type_asks || 0) >= 2;
           if (!isSecondAsk) {
             if (_male) return `What night are you thinking bro?`;
             if (_female) return `What night are you thinking? x`;

@@ -321,8 +321,8 @@ function decideNextAction(state, routerOutput) {
 
 function _resolveNightType(state) {
   if (state.night_type !== null) return state; // already known
-  if ((state.night_type_asks || 0) >= 2) {
-    // Give up asking after 1 attempt — default to weekend
+  if ((state.night_type_asks || 0) >= 3) {
+    // Give up asking after 2 attempts — default to weekend
     return updateState(state, { night_type: 'weekend', night_type_asks: (state.night_type_asks || 0) + 1 });
   }
   return null; // still need to ask
@@ -397,8 +397,10 @@ function _handleTableFlow(state) {
       return { action: 'handoff', updatedState: updated, missingField: null, tableMinimum: tableMin, eligibilityResult: null };
     }
 
-    const confirmed = updateState(s, { status: 'confirmed' });
-    return { action: 'confirm', updatedState: confirmed, missingField: null, tableMinimum: tableMin, eligibilityResult: null };
+    // All info collected — alert Sanad to personally confirm with the guest.
+    // Bot never auto-sends the table confirmation template; Sanad closes every table booking.
+    const updated = updateState(s, { status: 'handoff', handoff_reason: 'table_booking_ready', paused: true });
+    return { action: 'handoff', updatedState: updated, missingField: null, tableMinimum: tableMin, eligibilityResult: null };
   }
 
   return { action: 'ask_question', updatedState: s, missingField: 'group_size', tableMinimum: null, eligibilityResult: null };

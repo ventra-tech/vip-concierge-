@@ -56,6 +56,68 @@ function buildHandoffAlert(state) {
   // Estimated value label
   const estValue = calculateBookingValue(state).label;
 
+  const isTableReady = state.handoff_reason === 'table_booking_ready';
+
+  // Phone number tile — shown for table bookings where it's been collected
+  const phoneRowHtml = state.phone_number ? `
+      <tr>
+        <td colspan="2" style="background:#f0fdf4;border:1px solid #bbf7d0;border-radius:10px;padding:12px 14px;vertical-align:top;">
+          <div style="font-size:11px;color:#16a34a;font-weight:600;text-transform:uppercase;letter-spacing:0.5px;margin-bottom:4px;">📱 Phone Number</div>
+          <div style="font-size:15px;font-weight:700;color:#1e293b;">${state.phone_number}</div>
+        </td>
+      </tr>` : '';
+
+  // Action buttons — simpler set when all table details are already collected
+  const actionButtonsHtml = isTableReady
+    ? `<table style="width:100%;border-collapse:separate;border-spacing:6px;">
+        <tr>
+          <td style="width:50%;">
+            <a href="${baseUrl}/resume?subscriberId=${sid}&decision=manual_override"
+               style="display:block;background:#22c55e;color:white;padding:12px 10px;text-decoration:none;border-radius:8px;font-size:14px;font-weight:700;text-align:center;">
+              ✅ Confirm — I'll message them now
+            </a>
+          </td>
+          <td style="width:50%;">
+            <a href="${baseUrl}/resume?subscriberId=${sid}&decision=reject"
+               style="display:block;background:#ef4444;color:white;padding:12px 10px;text-decoration:none;border-radius:8px;font-size:14px;font-weight:700;text-align:center;">
+              ❌ Reject
+            </a>
+          </td>
+        </tr>
+      </table>`
+    : `<table style="width:100%;border-collapse:separate;border-spacing:6px;">
+        <tr>
+          <td style="width:50%;">
+            <a href="${baseUrl}/resume?subscriberId=${sid}&decision=approve_guestlist"
+               style="display:block;background:#22c55e;color:white;padding:12px 10px;text-decoration:none;border-radius:8px;font-size:14px;font-weight:700;text-align:center;">
+              ✅ Approve Guestlist
+            </a>
+          </td>
+          <td style="width:50%;">
+            <a href="${baseUrl}/resume?subscriberId=${sid}&decision=push_table"
+               style="display:block;background:#a855f7;color:white;padding:12px 10px;text-decoration:none;border-radius:8px;font-size:14px;font-weight:700;text-align:center;">
+              🍾 Push to Table
+            </a>
+          </td>
+        </tr>
+        <tr>
+          <td colspan="2">
+            <a href="${baseUrl}/resume?subscriberId=${sid}&decision=reject"
+               style="display:block;background:#ef4444;color:white;padding:12px 10px;text-decoration:none;border-radius:8px;font-size:14px;font-weight:700;text-align:center;">
+              ❌ Reject
+            </a>
+          </td>
+        </tr>
+        <tr>
+          <td colspan="2">
+            <a href="${baseUrl}/override?subscriberId=${sid}"
+               style="display:block;background:#f59e0b;color:white;padding:12px 10px;text-decoration:none;border-radius:8px;font-size:14px;font-weight:700;text-align:center;">
+              👤 Manual Override — I'll Handle This
+            </a>
+          </td>
+        </tr>
+      </table>`;
+
   // Lead type badge colour
   const leadBadgeColor = state.lead_type === 'table' ? '#7C3AED' : '#0EA5E9';
   const leadLabel = state.lead_type === 'table' ? '🍾 Table' : state.lead_type === 'guestlist' ? '✅ Guestlist' : '❓ Unknown';
@@ -118,6 +180,7 @@ function buildHandoffAlert(state) {
           <div style="font-size:14px;font-weight:600;color:#1e293b;">${state.collected_names.join(' · ')}</div>
         </td>
       </tr>` : ''}
+      ${phoneRowHtml}
     </table>
   </div>
 
@@ -134,38 +197,7 @@ function buildHandoffAlert(state) {
   <!-- Action Buttons -->
   <div style="background:#1a1a2e;padding:20px;border-radius:0 0 12px 12px;">
     <p style="margin:0 0 14px;font-size:11px;font-weight:700;color:#a0aec0;text-transform:uppercase;letter-spacing:1px;">Your Decision</p>
-    <table style="width:100%;border-collapse:separate;border-spacing:6px;">
-      <tr>
-        <td style="width:50%;">
-          <a href="${baseUrl}/resume?subscriberId=${sid}&decision=approve_guestlist"
-             style="display:block;background:#22c55e;color:white;padding:12px 10px;text-decoration:none;border-radius:8px;font-size:14px;font-weight:700;text-align:center;">
-            ✅ Approve Guestlist
-          </a>
-        </td>
-        <td style="width:50%;">
-          <a href="${baseUrl}/resume?subscriberId=${sid}&decision=push_table"
-             style="display:block;background:#a855f7;color:white;padding:12px 10px;text-decoration:none;border-radius:8px;font-size:14px;font-weight:700;text-align:center;">
-            🍾 Push to Table
-          </a>
-        </td>
-      </tr>
-      <tr>
-        <td colspan="2">
-          <a href="${baseUrl}/resume?subscriberId=${sid}&decision=reject"
-             style="display:block;background:#ef4444;color:white;padding:12px 10px;text-decoration:none;border-radius:8px;font-size:14px;font-weight:700;text-align:center;">
-            ❌ Reject
-          </a>
-        </td>
-      </tr>
-      <tr>
-        <td colspan="2">
-          <a href="${baseUrl}/override?subscriberId=${sid}"
-             style="display:block;background:#f59e0b;color:white;padding:12px 10px;text-decoration:none;border-radius:8px;font-size:14px;font-weight:700;text-align:center;">
-            👤 Manual Override — I'll Handle This
-          </a>
-        </td>
-      </tr>
-    </table>
+    ${actionButtonsHtml}
     <p style="margin:14px 0 0;font-size:11px;color:#4a5568;text-align:center;">Reign Concierge Brain · ${new Date().toLocaleString('en-GB', { timeZone: 'Europe/London' })}</p>
   </div>
 
@@ -356,6 +388,13 @@ function getHoldingMessage(state) {
   if (reason.includes('large_table') || reason.includes('pre_dinner')) {
     return "Love that 🍾 Let me put something together for you — I'll be back shortly";
   }
+  if (reason === 'table_booking_ready') {
+    const isMale = state.detected_gender === 'male';
+    const isFemale = state.detected_gender === 'female';
+    if (isMale) return "Hang tight bro, let me finalise and get you sorted 🍾";
+    if (isFemale) return "Hang tight darling, let me finalise and get you sorted 🥂 x";
+    return "Hang tight, let me finalise and get you sorted 🍾";
+  }
 
   return "Give me a sec 👀 I'll get back to you shortly";
 }
@@ -444,6 +483,7 @@ function formatHandoffReason(reason) {
     night_type_unknown: '❓ Night type unknown for ratio check',
     '3_or_more_guys_no_guestlist': '🚫 3+ guys guestlist not allowed',
     unknown_group_composition: '❓ Group composition unknown',
+    table_booking_ready: '🍾 Table booking ready — all details collected',
   };
 
   if (!reason) return 'Unknown';
