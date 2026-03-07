@@ -165,24 +165,38 @@ function calculateBookingValue(state) {
 function detectNightType(input) {
   if (!input) return null;
   const lower = input.toLowerCase();
+
+  // Specific day names
   if (['friday', 'saturday', 'sunday'].some((d) => lower.includes(d))) return 'weekend';
   if (['monday', 'tuesday', 'wednesday', 'thursday'].some((d) => lower.includes(d))) return 'weekday';
+
   // tonight / today — use current day
   if (lower.includes('tonight') || lower.includes('today')) {
     const day = new Date().getDay(); // 0=Sun, 6=Sat
     return [0, 5, 6].includes(day) ? 'weekend' : 'weekday';
   }
-  // tomorrow — use next day
-  if (lower.includes('tomorrow')) {
+
+  // tomorrow / tmr / tmrw — use next day
+  if (/\b(tomorrow|tmr|tmrw)\b/.test(lower)) {
     const tomorrow = new Date();
     tomorrow.setDate(tomorrow.getDate() + 1);
-    const tomorrowDay = tomorrow.getDay(); // 0=Sun, 6=Sat
-    return [0, 5, 6].includes(tomorrowDay) ? 'weekend' : 'weekday';
+    const d = tomorrow.getDay();
+    return [0, 5, 6].includes(d) ? 'weekend' : 'weekday';
   }
-  // this weekend / next weekend
-  if (lower.includes('weekend')) return 'weekend';
-  // weekday / midweek / this week
-  if (lower.includes('weekday') || lower.includes('midweek') || lower.includes('this week')) return 'weekday';
+
+  // Explicit weekend signals
+  if (/\b(weekend|this weekend|next weekend|sat night|saturday night|friday night)\b/.test(lower)) {
+    return 'weekend';
+  }
+
+  // Weekday signals
+  if (/\b(weekday|midweek|this week)\b/.test(lower)) return 'weekday';
+
+  // Vague timing — default to weekend (safer for pricing)
+  if (/\b(any night|fun night|a night|some night|next week|soon|coming up)\b/.test(lower)) {
+    return 'weekend';
+  }
+
   return null;
 }
 

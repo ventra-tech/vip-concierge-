@@ -337,44 +337,6 @@ function extractPhoneNumber(text) {
 
 // ─── DATE / NIGHT EXTRACTION ──────────────────────────────────────────────────
 
-/**
- * Extract night type signals from text.
- * @param {string} text
- * @returns {'weekday'|'weekend'|null}
- */
-function extractNightType(text) {
-  const days = ['monday', 'tuesday', 'wednesday', 'thursday', 'friday', 'saturday', 'sunday'];
-  const lower = text.toLowerCase();
-
-  // Specific day names
-  for (const day of days) {
-    if (lower.includes(day)) return detectNightType(day);
-  }
-
-  // Tonight / today — use actual current day
-  if (lower.includes('tonight') || lower.includes('today')) return detectNightType('tonight');
-
-  // Tomorrow / tmr / tmrw — check what day of the week tomorrow is
-  if (/\b(tomorrow|tmr|tmrw)\b/.test(lower)) {
-    const tomorrow = new Date();
-    tomorrow.setDate(tomorrow.getDate() + 1);
-    const d = tomorrow.getDay(); // 0=Sun,1=Mon,...,5=Fri,6=Sat
-    return (d === 5 || d === 6 || d === 0) ? 'weekend' : 'weekday';
-  }
-
-  // Explicit weekend signals
-  if (/\b(weekend|this weekend|next weekend|sat night|saturday night|friday night)\b/.test(lower)) {
-    return 'weekend';
-  }
-
-  // Vague "any night" / "fun night" / "next week" — caller should treat as weekend (safer pricing)
-  if (/\b(any night|fun night|a night|some night|next week|this week|soon|coming up)\b/.test(lower)) {
-    return 'weekend';
-  }
-
-  return null;
-}
-
 // ─── MAIN ROUTER FUNCTION ─────────────────────────────────────────────────────
 
 /**
@@ -416,7 +378,7 @@ function classifyMessage(manyChatPayload, messageText) {
 
   // Step 3: extract numbers, date signals, names, Instagram handles, phone numbers
   const { groupSize, guys, girls } = extractNumbers(text);
-  const nightType = extractNightType(text);
+  const nightType = detectNightType(text);
   const { names, instagrams } = extractNamesAndInstagram(text);
   const phoneNumber = extractPhoneNumber(text);
 
@@ -440,5 +402,4 @@ module.exports = {
   detectMessageType,
   keywordClassify,
   extractNumbers,
-  extractNightType,
 };
