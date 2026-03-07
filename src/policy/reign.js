@@ -125,11 +125,6 @@ function checkHandoffRequired({ messageType, messageText, state }) {
     return { required: true, reason: 'pre_dinner_mentioned' };
   }
 
-  // Large table group (5+ and requesting table)
-  if (state.lead_type === 'table' && state.group_size >= 5) {
-    return { required: true, reason: 'large_table_group' };
-  }
-
   return { required: false, reason: null };
 }
 
@@ -170,13 +165,38 @@ function calculateBookingValue(state) {
 function detectNightType(input) {
   if (!input) return null;
   const lower = input.toLowerCase();
+
+  // Specific day names
   if (['friday', 'saturday', 'sunday'].some((d) => lower.includes(d))) return 'weekend';
   if (['monday', 'tuesday', 'wednesday', 'thursday'].some((d) => lower.includes(d))) return 'weekday';
+
   // tonight / today — use current day
   if (lower.includes('tonight') || lower.includes('today')) {
     const day = new Date().getDay(); // 0=Sun, 6=Sat
     return [0, 5, 6].includes(day) ? 'weekend' : 'weekday';
   }
+
+  // tomorrow / tmr / tmrw — use next day
+  if (/\b(tomorrow|tmr|tmrw)\b/.test(lower)) {
+    const tomorrow = new Date();
+    tomorrow.setDate(tomorrow.getDate() + 1);
+    const d = tomorrow.getDay();
+    return [0, 5, 6].includes(d) ? 'weekend' : 'weekday';
+  }
+
+  // Explicit weekend signals
+  if (/\b(weekend|this weekend|next weekend|sat night|saturday night|friday night)\b/.test(lower)) {
+    return 'weekend';
+  }
+
+  // Weekday signals
+  if (/\b(weekday|midweek|this week)\b/.test(lower)) return 'weekday';
+
+  // Vague timing — default to weekend (safer for pricing)
+  if (/\b(any night|fun night|a night|some night|next week|soon|coming up)\b/.test(lower)) {
+    return 'weekend';
+  }
+
   return null;
 }
 
