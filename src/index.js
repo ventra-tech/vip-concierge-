@@ -97,22 +97,51 @@ async function processMessage(manyChatBody) {
       first_name: firstName || state.first_name || null,
     };
 
-    // ── 7. If session is paused (handoff active) — send holding message ──
+    // ── 7. Classify message (needed for paused logic and main flow) ──
+    const routerOutput = await classifyMessage(manyChatBody, messageText);
+
+    // ── 8. If session is paused (handoff active) ──
+    // Smart pause: only block booking-changing messages — answer general questions normally.
     if (state.paused) {
-      const { message: holdingReply, nextIndex } = _getHoldingWhilePaused(state);
-      // Save updated history and holding index so it never repeats
-      const updatedHistory = _addToHistory(state, 'assistant', holdingReply);
-      state = { ...state, conversation_history: updatedHistory, last_holding_index: nextIndex };
+      const intent = routerOutput.intent;
+
+      // Booking-changing = trying to modify group size, night, or lead type while Sanad is handling it
+      const isBookingChange = (
+        ['table', 'guestlist'].includes(intent) ||
+        routerOutput.groupSize !== null ||
+        (routerOutput.nightType !== null && routerOutput.nightType !== state.night_type)
+      );
+
+      let replyText;
+      if (isBookingChange) {
+        // Sanad needs to handle this — send cycling holding message
+        const { message: holdingReply, nextIndex } = _getHoldingWhilePaused(state);
+        replyText = holdingReply;
+        state = { ...state, last_holding_index: nextIndex };
+      } else {
+        // General question or chat — LLM can answer without affecting the booking
+        const pausedAction = intent === 'question' ? 'answer_question'
+          : intent === 'objection' ? 'objection'
+          : 'rapport';
+        replyText = await composeReply({
+          action: pausedAction,
+          state,
+          missingField: null,
+          tableMinimum: null,
+          eligibilityResult: null,
+          rawUserMessage: messageText,
+        });
+      }
+
+      const updatedHistory = _addToHistory(state, 'assistant', replyText);
+      state = { ...state, conversation_history: updatedHistory };
       saveSession(subscriberId, state);
-      logEvent('message_while_paused', state);
+      logEvent('message_while_paused', state, { intent, isBookingChange });
       return {
-        reply_text: holdingReply,
-        actions: [{ type: 'PAUSED_HOLDING_REPLY', subscriberId }],
+        reply_text: replyText,
+        actions: isBookingChange ? [{ type: 'PAUSED_HOLDING_REPLY', subscriberId }] : [],
       };
     }
-
-    // ── 8. Classify message ──
-    const routerOutput = await classifyMessage(manyChatBody, messageText);
 
     // ── 9. Decide next action ──
     const { action, updatedState, missingField, tableMinimum, eligibilityResult } =
