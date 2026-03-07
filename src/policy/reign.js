@@ -172,6 +172,17 @@ function detectNightType(input) {
     const day = new Date().getDay(); // 0=Sun, 6=Sat
     return [0, 5, 6].includes(day) ? 'weekend' : 'weekday';
   }
+  // tomorrow — use next day
+  if (lower.includes('tomorrow')) {
+    const tomorrow = new Date();
+    tomorrow.setDate(tomorrow.getDate() + 1);
+    const tomorrowDay = tomorrow.getDay(); // 0=Sun, 6=Sat
+    return [0, 5, 6].includes(tomorrowDay) ? 'weekend' : 'weekday';
+  }
+  // this weekend / next weekend
+  if (lower.includes('weekend')) return 'weekend';
+  // weekday / midweek / this week
+  if (lower.includes('weekday') || lower.includes('midweek') || lower.includes('this week')) return 'weekday';
   return null;
 }
 
