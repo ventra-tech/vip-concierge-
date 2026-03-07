@@ -37,7 +37,7 @@ const INTENT_KEYWORDS = {
     'forget it', 'not interested',
   ],
   birthday: [
-    'birthday', 'bday', 'celebration', 'celebrate', 'special occasion',
+    'birthday', 'bday', 'b day', 'b-day', 'celebration', 'celebrate', 'special occasion',
     'anniversary',
   ],
   confirmation: [
