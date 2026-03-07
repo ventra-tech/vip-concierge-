@@ -288,16 +288,16 @@ async function composeReply({
       if (state.status !== 'confirmed') {
         const gender = state.detected_gender;
         const maleOpeners = [
-          `Bro 🕺🏻 you came to the right place trust. What's the occasion?`,
-          `Bro 🔥 good timing. What's the occasion?`,
+          `Alright bro 🕺🏻 you came to the right place trust. What's the occasion?`,
+          `Hey bro 🔥 good timing. What's the occasion?`,
         ];
         const femaleOpeners = [
           `Heyy gorgeous 🥂 you came to the right place trust me. What's the occasion? x`,
           `Heyyy darling 🥂 so glad you reached out. What's the occasion? x`,
         ];
         const neutralOpeners = [
-          `🕺🏻 You came to the right place trust. What's the occasion?`,
-          `🔥 Good timing. What's the occasion?`,
+          `Alright 🕺🏻 you came to the right place trust. What's the occasion?`,
+          `Hey 🔥 good timing. What's the occasion?`,
         ];
         const pool = gender === 'male' ? maleOpeners : gender === 'female' ? femaleOpeners : neutralOpeners;
         return pool[Math.floor(Math.random() * pool.length)];
