@@ -184,13 +184,12 @@ function buildInstruction(action, missingField, state, tableMinimum) {
   if (state.guys != null) knownParts.push(`${state.guys} guy(s)`);
   if (state.girls != null) knownParts.push(`${state.girls} girl(s)`);
   if (state.night_type) knownParts.push(`coming ${night}`);
-  if (state.full_name) knownParts.push(`name: ${state.full_name}`);
   if (state.phone_number) knownParts.push(`phone: ${state.phone_number}`);
   if (state.collected_names && state.collected_names.length > 0) {
     knownParts.push(`names collected: ${state.collected_names.join(', ')}`);
   }
-  if (state.collected_handles && state.collected_handles.length > 0) {
-    knownParts.push(`handles collected: ${state.collected_handles.join(', ')}`);
+  if (state.collected_instagrams && state.collected_instagrams.length > 0) {
+    knownParts.push(`handles collected: ${state.collected_instagrams.join(', ')}`);
   }
   const context = knownParts.length > 0
     ? `What you already know: ${knownParts.join(', ')}. `
@@ -244,7 +243,8 @@ function buildInstruction(action, missingField, state, tableMinimum) {
         }
 
         case 'phone_number': {
-          const nameStr = state.full_name ? `You already have their name (${state.full_name}). ` : '';
+          const collectedName = state.collected_names && state.collected_names.length > 0 ? state.collected_names[0] : null;
+          const nameStr = collectedName ? `You already have their name (${collectedName}). ` : '';
           return `${context}${nameStr}Still need their UK phone number to add them to the group chat with the owner. Ask for it — mention UK numbers only (+44 or 07xxx).`;
         }
 
