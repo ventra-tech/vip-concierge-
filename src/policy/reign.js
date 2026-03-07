@@ -125,11 +125,6 @@ function checkHandoffRequired({ messageType, messageText, state }) {
     return { required: true, reason: 'pre_dinner_mentioned' };
   }
 
-  // Large table group (5+ and requesting table)
-  if (state.lead_type === 'table' && state.group_size >= 5) {
-    return { required: true, reason: 'large_table_group' };
-  }
-
   return { required: false, reason: null };
 }
 

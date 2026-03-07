@@ -385,11 +385,6 @@ function _handleTableFlow(state) {
   const missingField = getNextMissingField(s);
 
   if (s.group_size !== null) {
-    // Large group — handoff
-    if (s.group_size >= 5) {
-      const updated = updateState(s, { status: 'handoff', handoff_reason: 'large_table_group', paused: true });
-      return { action: 'handoff', updatedState: updated, missingField: null, tableMinimum: null, eligibilityResult: null };
-    }
     const tableMin = getTableMinimum(s.group_size, s.night_type);
 
     if (missingField) {
