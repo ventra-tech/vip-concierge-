@@ -237,8 +237,10 @@ function buildInstruction(action, missingField, state, tableMinimum) {
 
         case 'full_name_for_table': {
           const tMin = tableMinimum || (state.group_size ? getTableMinimum(state.group_size, state.night_type) : null);
-          const minText = tMin ? ` Min spend is ${tMin.label}.` : '';
-          return `${context}They're ready to book a table.${minText} Ask for their full name for the booking and their UK phone number (+44 or 07xxx format). Ask for both in one message.`;
+          const minText = tMin
+            ? `You MUST tell them the minimum spend is ${tMin.label} — this is critical info they need before committing. Then ask for their full name and UK phone number (+44 or 07xxx) in the same message.`
+            : `Ask for their full name for the booking and their UK phone number (+44 or 07xxx). Ask for both in one message.`;
+          return `${context}They're ready to book a table. ${minText}`;
         }
 
         case 'phone_number': {
