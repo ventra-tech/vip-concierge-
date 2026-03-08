@@ -371,7 +371,7 @@ function getHoldingMessage(state) {
   const reason = state.handoff_reason || '';
 
   if (reason.includes('voice')) {
-    return "Got it ❤️‍🔥 I've listened to your voice note — I'll reply properly shortly 👀";
+    return "Got it ❤️‍🔥 I've listened to your voice note, I'll reply properly shortly 👀";
   }
   if (reason.includes('image') || reason.includes('video')) {
     return "Got it ❤️‍🔥 I'll get back to you shortly 👀";
@@ -386,7 +386,7 @@ function getHoldingMessage(state) {
     return "Let me check with the owner and I'll get back to you shortly 👀";
   }
   if (reason.includes('large_table') || reason.includes('pre_dinner')) {
-    return "Love that 🍾 Let me put something together for you — I'll be back shortly";
+    return "Love that 🍾 Let me put something together for you, I'll be back shortly";
   }
   if (reason === 'table_booking_ready') {
     const isMale = state.detected_gender === 'male';

@@ -140,12 +140,12 @@ function pushTableAfterHandoff(tableMinimum, state) {
   if (isFemale) {
     return [
       `I can sort you girls a table instead 🍾`,
-      `Min spend ${tableMinimum.label} — your own section, bottles, full VIP`,
+      `Min spend ${tableMinimum.label}, your own section, bottles, full VIP`,
       `Send me your full name and number x`,
     ].join('\n');
   }
   return [
-    `I can do a table — min spend ${tableMinimum.label} 🍾`,
+    `I can do a table, min spend ${tableMinimum.label} 🍾`,
     `Send me your full name and number and I'll get it booked`,
   ].join('\n');
 }

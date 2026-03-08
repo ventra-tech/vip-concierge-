@@ -17,7 +17,7 @@ const HOLDING_MESSAGES = [
   "Bear with me one sec 👀",
   "Still sorting this for you 🙏",
   "Give me a moment ❤️‍🔥",
-  "On it — back with you shortly 👀",
+  "On it, back with you shortly 👀",
   "Just checking on this for you 😏",
   "Won't be long 🥂",
 ];
