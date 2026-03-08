@@ -124,6 +124,16 @@ app.get('/resume', async (req, res) => {
       }
     }
 
+    // Log outcome to Google Sheets via n8n (fire-and-forget — doesn't block response)
+    const sheetsAction = (result.actions || []).find(a => a.type === 'LOG_TO_SHEETS');
+    if (sheetsAction && process.env.N8N_SHEETS_URL) {
+      fetch(process.env.N8N_SHEETS_URL, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(sheetsAction),
+      }).catch(err => console.error('[server] /resume Sheets log failed:', err.message));
+    }
+
     const decisionLabels = {
       approve_guestlist: '✅ Guestlist Approved',
       push_table: '🍾 Pushed to Table',
