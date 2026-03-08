@@ -309,6 +309,11 @@ async function composeReply({
     case 'approve_guestlist':
       return guestlistApprovalAfterHandoff(state);
 
+    case 'approve_table': {
+      const tMin = tableMinimum || getTableMinimum(state.group_size || state.guys || 2, state.night_type);
+      return tableConfirmation(state, tMin);
+    }
+
     case 'push_table': {
       const tMin = tableMinimum || getTableMinimum(state.group_size || state.guys || 3, state.night_type);
       return pushTableAfterHandoff(tMin, state);

@@ -56,8 +56,6 @@ function buildHandoffAlert(state) {
   // Estimated value label
   const estValue = calculateBookingValue(state).label;
 
-  const isTableReady = state.handoff_reason === 'table_booking_ready';
-
   // Phone number tile — shown for table bookings where it's been collected
   const phoneRowHtml = state.phone_number ? `
       <tr>
@@ -67,56 +65,31 @@ function buildHandoffAlert(state) {
         </td>
       </tr>` : '';
 
-  // Action buttons — simpler set when all table details are already collected
-  const actionButtonsHtml = isTableReady
-    ? `<table style="width:100%;border-collapse:separate;border-spacing:6px;">
-        <tr>
-          <td style="width:50%;">
-            <a href="${baseUrl}/resume?subscriberId=${sid}&decision=manual_override"
-               style="display:block;background:#22c55e;color:white;padding:12px 10px;text-decoration:none;border-radius:8px;font-size:14px;font-weight:700;text-align:center;">
-              ✅ Confirm — I'll message them now
-            </a>
-          </td>
-          <td style="width:50%;">
-            <a href="${baseUrl}/resume?subscriberId=${sid}&decision=reject"
-               style="display:block;background:#ef4444;color:white;padding:12px 10px;text-decoration:none;border-radius:8px;font-size:14px;font-weight:700;text-align:center;">
-              ❌ Reject
-            </a>
-          </td>
-        </tr>
-      </table>`
-    : `<table style="width:100%;border-collapse:separate;border-spacing:6px;">
-        <tr>
-          <td style="width:50%;">
-            <a href="${baseUrl}/resume?subscriberId=${sid}&decision=approve_guestlist"
-               style="display:block;background:#22c55e;color:white;padding:12px 10px;text-decoration:none;border-radius:8px;font-size:14px;font-weight:700;text-align:center;">
-              ✅ Approve Guestlist
-            </a>
-          </td>
-          <td style="width:50%;">
-            <a href="${baseUrl}/resume?subscriberId=${sid}&decision=push_table"
-               style="display:block;background:#a855f7;color:white;padding:12px 10px;text-decoration:none;border-radius:8px;font-size:14px;font-weight:700;text-align:center;">
-              🍾 Push to Table
-            </a>
-          </td>
-        </tr>
-        <tr>
-          <td colspan="2">
-            <a href="${baseUrl}/resume?subscriberId=${sid}&decision=reject"
-               style="display:block;background:#ef4444;color:white;padding:12px 10px;text-decoration:none;border-radius:8px;font-size:14px;font-weight:700;text-align:center;">
-              ❌ Reject
-            </a>
-          </td>
-        </tr>
-        <tr>
-          <td colspan="2">
-            <a href="${baseUrl}/override?subscriberId=${sid}"
-               style="display:block;background:#f59e0b;color:white;padding:12px 10px;text-decoration:none;border-radius:8px;font-size:14px;font-weight:700;text-align:center;">
-              👤 Manual Override — I'll Handle This
-            </a>
-          </td>
-        </tr>
-      </table>`;
+  // 3 buttons — same for every handoff type. Approve is smart (routes by lead_type in backend).
+  const actionButtonsHtml = `<table style="width:100%;border-collapse:separate;border-spacing:6px;">
+      <tr>
+        <td colspan="2">
+          <a href="${baseUrl}/resume?subscriberId=${sid}&decision=approve"
+             style="display:block;background:#22c55e;color:white;padding:16px 10px;text-decoration:none;border-radius:8px;font-size:16px;font-weight:700;text-align:center;letter-spacing:0.3px;">
+            ✅ Approve
+          </a>
+        </td>
+      </tr>
+      <tr>
+        <td style="width:50%;">
+          <a href="${baseUrl}/resume?subscriberId=${sid}&decision=reject"
+             style="display:block;background:#ef4444;color:white;padding:12px 10px;text-decoration:none;border-radius:8px;font-size:14px;font-weight:700;text-align:center;">
+            ❌ Reject
+          </a>
+        </td>
+        <td style="width:50%;">
+          <a href="${baseUrl}/resume?subscriberId=${sid}&decision=manual_override"
+             style="display:block;background:#f59e0b;color:white;padding:12px 10px;text-decoration:none;border-radius:8px;font-size:14px;font-weight:700;text-align:center;">
+            👤 Manual Override
+          </a>
+        </td>
+      </tr>
+    </table>`;
 
   // Lead type badge colour
   const leadBadgeColor = state.lead_type === 'table' ? '#7C3AED' : '#0EA5E9';
@@ -411,7 +384,9 @@ function getHoldingMessage(state) {
  * Valid decisions Sanad can make after a handoff.
  */
 const SANAD_DECISIONS = {
+  APPROVE: 'approve',              // Smart approve — routes to guestlist or table based on lead_type
   APPROVE_GUESTLIST: 'approve_guestlist',
+  APPROVE_TABLE: 'approve_table',
   PUSH_TABLE: 'push_table',
   REJECT: 'reject',
   CUSTOM: 'custom',
@@ -434,6 +409,11 @@ function resumeAfterHandoff(subscriberId, decision, extra = {}) {
     case SANAD_DECISIONS.APPROVE_GUESTLIST:
       resumeData = { status: 'approved', lead_type: 'guestlist' };
       nextAction = 'approve_guestlist';
+      break;
+
+    case SANAD_DECISIONS.APPROVE_TABLE:
+      resumeData = { status: 'confirmed', lead_type: 'table', paused: false };
+      nextAction = 'approve_table';
       break;
 
     case SANAD_DECISIONS.PUSH_TABLE:

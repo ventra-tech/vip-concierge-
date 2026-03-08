@@ -266,7 +266,14 @@ async function _processMessage(manyChatBody, parsed, messageText) {
  */
 async function resumeFromHandoff(resumeBody) {
   const { resumeAfterHandoff } = require('./handoffLogic');
-  const { subscriberId, decision, extra = {} } = resumeBody;
+  const { subscriberId, extra = {} } = resumeBody;
+  let { decision } = resumeBody;
+
+  // Smart approve — route to guestlist or table based on current lead_type
+  if (decision === 'approve') {
+    const currentState = getSession(subscriberId);
+    decision = currentState.lead_type === 'table' ? 'approve_table' : 'approve_guestlist';
+  }
 
   const { resumedState, nextAction } = resumeAfterHandoff(subscriberId, decision, extra);
 
