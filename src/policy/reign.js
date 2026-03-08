@@ -200,6 +200,56 @@ function detectNightType(input) {
   return null;
 }
 
+const DAY_NAMES = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'];
+
+/**
+ * Returns a human-readable night label from raw user input.
+ * e.g. "friday" → "Friday", "tonight" → "Tonight (Friday)", "tmr" → "Tomorrow (Saturday)"
+ * @param {string} input
+ * @returns {string|null}
+ */
+function getNightLabel(input) {
+  if (!input) return null;
+  const lower = input.toLowerCase();
+
+  // Specific day names — capitalise and return
+  if (lower.includes('friday'))    return 'Friday';
+  if (lower.includes('saturday'))  return 'Saturday';
+  if (lower.includes('sunday'))    return 'Sunday';
+  if (lower.includes('monday'))    return 'Monday';
+  if (lower.includes('tuesday'))   return 'Tuesday';
+  if (lower.includes('wednesday')) return 'Wednesday';
+  if (lower.includes('thursday'))  return 'Thursday';
+
+  // tonight / today → resolve to actual day name
+  if (lower.includes('tonight') || lower.includes('today')) {
+    return `Tonight (${DAY_NAMES[new Date().getDay()]})`;
+  }
+
+  // tomorrow / tmr / tmrw → resolve to actual day name
+  if (/\b(tomorrow|tmr|tmrw)\b/.test(lower)) {
+    const tomorrow = new Date();
+    tomorrow.setDate(tomorrow.getDate() + 1);
+    return `Tomorrow (${DAY_NAMES[tomorrow.getDay()]})`;
+  }
+
+  // Weekend phrases
+  if (/\bnext weekend\b/.test(lower))  return 'Next weekend';
+  if (/\bthis weekend\b/.test(lower))  return 'This weekend';
+  if (/\bfriday night\b/.test(lower))  return 'Friday night';
+  if (/\bsat(urday)? night\b/.test(lower)) return 'Saturday night';
+  if (/\bweekend\b/.test(lower))       return 'Weekend';
+
+  // Weekday phrases
+  if (/\b(midweek|weekday)\b/.test(lower)) return 'Midweek';
+  if (/\bthis week\b/.test(lower))     return 'This week';
+
+  // Vague timing
+  if (/\b(next week|soon|coming up|any night|fun night|a night|some night)\b/.test(lower)) return 'Soon';
+
+  return null;
+}
+
 module.exports = {
   REIGN,
   getTableMinimum,
@@ -207,5 +257,6 @@ module.exports = {
   evaluateGuestlistEligibility,
   checkHandoffRequired,
   detectNightType,
+  getNightLabel,
   OTHER_VENUES,
 };

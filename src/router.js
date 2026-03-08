@@ -10,7 +10,7 @@
  *   5. LLM fallback ONLY when keywords produce no match
  */
 
-const { detectNightType } = require('./policy/reign');
+const { detectNightType, getNightLabel } = require('./policy/reign');
 
 // ─── INTENT KEYWORD MAP ──────────────────────────────────────────────────────
 
@@ -379,6 +379,7 @@ function classifyMessage(manyChatPayload, messageText) {
   // Step 3: extract numbers, date signals, names, Instagram handles, phone numbers
   const { groupSize, guys, girls } = extractNumbers(text);
   const nightType = detectNightType(text);
+  const nightLabel = getNightLabel(text);
   const { names, instagrams } = extractNamesAndInstagram(text);
   const phoneNumber = extractPhoneNumber(text);
 
@@ -389,6 +390,7 @@ function classifyMessage(manyChatPayload, messageText) {
     guys,
     girls,
     nightType,
+    nightLabel,
     names,
     instagrams,
     phoneNumber,

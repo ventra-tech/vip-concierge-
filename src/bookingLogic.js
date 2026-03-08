@@ -133,6 +133,7 @@ function mergeRouterIntoState(state, routerOutput, intent) {
   const isExplicitBookingIntent = ['table', 'guestlist'].includes(intent);
   if (routerOutput.nightType !== null && (prevNeed === 'night_type' || isExplicitBookingIntent)) {
     updates.night_type = routerOutput.nightType;
+    if (routerOutput.nightLabel) updates.night_label = routerOutput.nightLabel;
   }
   const namesExpected =
     prevNeed === 'full_names' ||

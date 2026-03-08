@@ -121,7 +121,11 @@ function buildHandoffAlert(state) {
   // Lead type badge colour
   const leadBadgeColor = state.lead_type === 'table' ? '#7C3AED' : '#0EA5E9';
   const leadLabel = state.lead_type === 'table' ? '🍾 Table' : state.lead_type === 'guestlist' ? '✅ Guestlist' : '❓ Unknown';
-  const nightLabel = state.night_type === 'weekend' ? '🎉 Weekend' : state.night_type === 'weekday' ? '📅 Weekday' : '❓ Not specified';
+  const nightLabel = state.night_label
+    ? `🗓️ ${state.night_label}`
+    : state.night_type === 'weekend' ? '🎉 Weekend'
+    : state.night_type === 'weekday' ? '📅 Weekday'
+    : '❓ Not specified';
 
   // Build email HTML with all buttons + conversation history
   const emailHtml = `
@@ -230,9 +234,11 @@ function buildConfirmationEmail(state) {
 
   const leadLabel = state.lead_type === 'table' ? '🍾 Table Booking' : '✅ Guestlist Booking';
   const leadBadgeColor = state.lead_type === 'table' ? '#7C3AED' : '#16a34a';
-  const nightLabel = state.night_type === 'weekend' ? '🎉 Weekend'
+  const nightLabel = state.night_label
+    ? `🗓️ ${state.night_label}`
+    : state.night_type === 'weekend' ? '🎉 Weekend'
     : state.night_type === 'weekday' ? '📅 Weekday'
-    : state.night_type || '❓ Not specified';
+    : '❓ Not specified';
 
   // Pair names with their instagrams where possible
   const namesListHtml = state.collected_names.length > 0

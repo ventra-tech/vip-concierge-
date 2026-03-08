@@ -42,6 +42,7 @@ function createState(subscriberId) {
     girls: null,
     guys: null,
     night_type: null,
+    night_label: null,       // Human-readable night label e.g. "Friday", "Tonight (Saturday)"
     venue: 'reign',
     budget: null,
     arrival_time: null,
