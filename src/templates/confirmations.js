@@ -25,7 +25,14 @@ function _nightLabel(night_type) {
  */
 function guestlistConfirmation(state) {
   const night = _nightLabel(state.night_type);
+  const gender = state.detected_gender;
+  const opener = gender === 'female'
+    ? `Awesome, you girls are all booked in 🥂\n`
+    : gender === 'male'
+      ? `Sorted bro, you're all locked in 🍾\n`
+      : `Awesome, you're all booked in 🎉\n`;
   return [
+    opener,
     `For - Reign ${night}`,
     `Address: ${REIGN.address}`,
     ``,

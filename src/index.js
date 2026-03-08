@@ -44,13 +44,69 @@ function _addToHistory(state, role, content) {
 // from both processing simultaneously and overwriting each other's state.
 const activeRequests = new Set();
 
+// ── Message debounce ─────────────────────────────────────────────────────────
+// Collects back-to-back messages from the same subscriber before processing.
+// Handles the common pattern where customers send names/details in 2 separate
+// messages (e.g. "Her: Violette Crombez" then "Me: Violette Fages").
+// Window: 2 seconds. Non-text messages (images, voice) are always processed immediately.
+const messageBuffers = new Map();
+const DEBOUNCE_MS = 2000;
+
+function _debounce(subscriberId, text, processFn) {
+  return new Promise((resolve) => {
+    const existing = messageBuffers.get(subscriberId);
+
+    if (existing) {
+      // Another message is pending — cancel its timer and resolve it with no-reply.
+      // Accumulate this message into the buffer.
+      clearTimeout(existing.timer);
+      existing.resolve({ reply_text: null, actions: [] });
+      existing.messages.push(text);
+      existing.resolve = resolve;
+    } else {
+      // First message for this subscriber — start buffer
+      messageBuffers.set(subscriberId, { messages: [text], timer: null, resolve });
+    }
+
+    const entry = messageBuffers.get(subscriberId);
+
+    // (Re)start the timer — fires after DEBOUNCE_MS of silence
+    entry.timer = setTimeout(async () => {
+      const combined = entry.messages.join('\n');
+      messageBuffers.delete(subscriberId);
+      try {
+        resolve(await processFn(combined));
+      } catch {
+        resolve({ reply_text: null, actions: [] });
+      }
+    }, DEBOUNCE_MS);
+  });
+}
+
 /**
  * Process a single incoming ManyChat message end-to-end.
  */
 async function processMessage(manyChatBody) {
+  const parsed = parseIncomingPayload(manyChatBody);
+  const { subscriberId, messageText, messageType } = parsed;
+
+  // Skip debounce for media messages — process them immediately
+  if (!messageText || messageType !== 'text') {
+    return _processMessage(manyChatBody, parsed, messageText);
+  }
+
+  // Debounce text messages — wait for back-to-back messages before processing
+  return _debounce(subscriberId, messageText, (combinedText) =>
+    _processMessage(manyChatBody, parsed, combinedText)
+  );
+}
+
+/**
+ * Internal: runs the full message pipeline with (possibly combined) text.
+ */
+async function _processMessage(manyChatBody, parsed, messageText) {
   // ── 1. Parse payload ──
-  const { subscriberId, messageText, messageType, firstName, username } =
-    parseIncomingPayload(manyChatBody);
+  const { subscriberId, messageType, firstName, username } = parsed;
 
   // ── 2. Concurrency lock — drop duplicate concurrent requests per subscriber ──
   // ManyChat sometimes fires the same trigger twice in rapid succession.
