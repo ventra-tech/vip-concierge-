@@ -11,6 +11,7 @@ const { decideNextAction } = require('./bookingLogic');
 const { buildHandoffAlert, buildConfirmationEmail, getHoldingMessage } = require('./handoffLogic');
 const { composeReply } = require('./persona/toneComposer');
 const { logEvent, logHandoff, logConfirmation, logMessageReceived } = require('./analytics/logger');
+const { buildSheetsLog } = require('./analytics/sheets');
 
 // Holding messages when AI is paused — cycles sequentially, never repeats back to back
 const HOLDING_MESSAGES = [
@@ -215,6 +216,8 @@ async function _processMessage(manyChatBody, parsed, messageText) {
     if (action === 'handoff') {
       const handoffAlert = buildHandoffAlert(state);
       actions.push(handoffAlert);
+      // Log handoff to Google Sheets
+      actions.push(buildSheetsLog('Handoff', state));
       replyText = getHoldingMessage(state);
       // Save bot reply to history
       const updatedHistory = _addToHistory(state, 'assistant', replyText);
@@ -243,6 +246,8 @@ async function _processMessage(manyChatBody, parsed, messageText) {
       logConfirmation(state);
       // Push confirmation email action so n8n sends Sanad a booking notification
       actions.push(buildConfirmationEmail(state));
+      // Log confirmed booking to Google Sheets
+      actions.push(buildSheetsLog('Confirmed', state));
     } else {
       logEvent('message_processed', state, { action });
     }
@@ -276,12 +281,14 @@ async function resumeFromHandoff(resumeBody) {
   }
 
   const { resumedState, nextAction } = resumeAfterHandoff(subscriberId, decision, extra);
+  const resumeActions = [];
 
   // Manual override — don't send any message, Sanad handles it
   if (decision === 'manual_override') {
     saveSession(subscriberId, resumedState);
     logEvent('manual_override_activated', resumedState, { decision });
-    return { reply_text: null, updated_state: resumedState };
+    resumeActions.push(buildSheetsLog('Manual Override', resumedState));
+    return { reply_text: null, updated_state: resumedState, actions: resumeActions };
   }
 
   // For resume_ai, don't restart with rapport — pick up from where conversation was
@@ -313,7 +320,16 @@ async function resumeFromHandoff(resumeBody) {
   saveSession(subscriberId, finalState);
   logEvent('handoff_resumed', finalState, { decision });
 
-  return { reply_text: replyText, updated_state: finalState };
+  // Log the outcome to Google Sheets
+  const sheetsOutcome =
+    decision === 'approve_guestlist' || decision === 'approve_table' ? 'Confirmed (Approved)'
+    : decision === 'reject'                                           ? 'Rejected'
+    : decision === 'push_table'                                       ? 'Pushed to Table'
+    : decision === 'resume_ai'                                        ? 'Resumed'
+    : decision;
+  resumeActions.push(buildSheetsLog(sheetsOutcome, finalState));
+
+  return { reply_text: replyText, updated_state: finalState, actions: resumeActions };
 }
 
 module.exports = { processMessage, resumeFromHandoff };
