@@ -166,6 +166,17 @@ function extractNumbers(text) {
     groupSize = 1;
   }
 
+  // Pattern: "me and [name] and [name]..." — names spelled out instead of numbers
+  // e.g. "me and bob and mike" = 3, "me and sarah and jade and chloe" = 4
+  // Count "me" (1) + one person per "and"
+  if (!groupSize) {
+    const meNamesChain = lower.match(/\bme\s+and\s+[a-z]+(\s+and\s+[a-z]+)+/);
+    if (meNamesChain) {
+      const andCount = (meNamesChain[0].match(/\band\b/g) || []).length;
+      groupSize = 1 + andCount;
+    }
+  }
+
   // If all girls and we have group size, set girls = groupSize
   if (guys === 0 && girls === null && groupSize !== null) {
     girls = groupSize;

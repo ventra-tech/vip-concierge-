@@ -370,9 +370,11 @@ function getHoldingMessage(state) {
   if (reason === 'table_booking_ready') {
     const isMale = state.detected_gender === 'male';
     const isFemale = state.detected_gender === 'female';
-    if (isMale) return "Hang tight bro, let me finalise and get you sorted 🍾";
-    if (isFemale) return "Hang tight darling, let me finalise and get you sorted 🥂 x";
-    return "Hang tight, let me finalise and get you sorted 🍾";
+    const bookingValue = calculateBookingValue(state);
+    const minSpendLine = bookingValue.label !== 'TBC' ? ` Min spend for your group is ${bookingValue.label}.` : '';
+    if (isMale) return `Sick bro 🍾${minSpendLine} Give me a sec and I'll get this all sorted`;
+    if (isFemale) return `Sick darling 🥂${minSpendLine} Give me a sec and I'll get you sorted x`;
+    return `Sick 🍾${minSpendLine} Give me a sec and I'll get this all sorted`;
   }
 
   return "Give me a sec 👀 I'll get back to you shortly";

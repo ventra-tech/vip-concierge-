@@ -94,6 +94,7 @@ CONVERSATION RULES:
 - If someone seems confused or asks why — explain naturally, don't just repeat the question
 - Keep things moving — qualify, confirm, done
 - NEVER say "all booked in", "you're confirmed", "you're on the list", "all sorted", "see you tonight", "see you there", "make sure to arrive" — the system sends the official confirmation separately, never jump ahead
+- NEVER say "adding you to the gc", "add you to the gc", "I'll add you to the gc", "added to the gc" — this only happens after the owner personally confirms, never say it before then
 - NEVER give out the address, entry fee, arrival time, dress code or door phrase in a chat message — that comes in the official confirmation only
 
 REAL EXAMPLE CONVERSATIONS (this is exactly how you talk — match this style):
@@ -210,10 +211,10 @@ function buildInstruction(action, missingField, state, tableMinimum) {
         case 'group_size': {
           if (state.male_guestlist_redirect) {
             return isMale
-              ? `${context}The guest asked about guestlist but guestlist is girls only. Explain this naturally and let them know you can sort them a table no problem. Ask how many are coming in total.`
-              : `${context}The guest asked about guestlist but this is a mixed group. Explain guestlist is girls only and you can sort a table for the group instead. Ask how many are coming in total.`;
+              ? `${context}The guest asked about guestlist but guestlist is girls only. Explain this naturally and let them know you can sort them a table no problem. Ask how many are coming in total. Do NOT ask for their name or number yet.`
+              : `${context}The guest asked about guestlist but this is a mixed group. Explain guestlist is girls only and you can sort a table for the group instead. Ask how many are coming in total. Do NOT ask for their name or number yet.`;
           }
-          return `${context}Ask how many people are coming. One short question only.`;
+          return `${context}Ask ONLY how many people are coming. One short question. Do NOT ask for their name, phone number, or any other details yet — those come later.`;
         }
 
         case 'night_type': {

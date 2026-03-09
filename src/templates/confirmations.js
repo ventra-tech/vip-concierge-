@@ -59,13 +59,21 @@ function guestlistConfirmation(state) {
 function tableConfirmation(state, tableMinimum) {
   const night = _nightLabel(state.night_type);
   const minLabel = tableMinimum ? tableMinimum.label : 'TBC';
+  const gender = state.detected_gender;
+  const opener = gender === 'female'
+    ? `Sorted darling, you're all locked in 🥂`
+    : gender === 'male'
+      ? `Sorted bro, you're all locked in 🍾`
+      : `Sorted, you're all locked in 🍾`;
   return [
-    `Sorted 🍾 I'll add you to the gc with the owner now`,
+    opener,
+    ``,
+    `Min spend: ${minLabel}`,
+    `I'll add you to the gc with the owner now`,
     ``,
     `For - Reign ${night}`,
     `Address: ${REIGN.address}`,
     ``,
-    `Min spend: ${minLabel}`,
     `Please arrive by 23:00`,
     `Dress code: ${REIGN.dress_code_guys}`,
     `${REIGN.id_requirement}`,
