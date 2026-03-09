@@ -65,6 +65,8 @@ function createState(subscriberId) {
     male_guestlist_redirect: false, // Male asked about guestlist — collect table info then handoff to Sanad
     last_message_text: null,        // Dedup guard: text of last processed message
     last_message_at: null,          // Dedup guard: epoch ms of last processed message
+    returning_customer: false,      // True if this subscriber has completed a booking before
+    previous_booking: null,         // Snapshot of last booking { lead_type, night_label, collected_names }
   };
 }
 

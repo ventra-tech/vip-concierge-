@@ -12,6 +12,7 @@ const { buildHandoffAlert, buildConfirmationEmail, getHoldingMessage } = require
 const { composeReply } = require('./persona/toneComposer');
 const { logEvent, logHandoff, logConfirmation, logMessageReceived } = require('./analytics/logger');
 const { buildSheetsLog } = require('./analytics/sheets');
+const { createState } = require('./state');
 
 // Holding messages when AI is paused — cycles sequentially, never repeats back to back
 const HOLDING_MESSAGES = [
@@ -120,6 +121,26 @@ async function _processMessage(manyChatBody, parsed, messageText) {
   try {
     // ── 3. Load session ──
     let state = getSession(subscriberId);
+
+    // ── 3b. Returning customer — reset booking fields if previous booking was completed ──
+    // Keeps personal info (gender, name, IG handle) but starts a fresh booking flow.
+    // Sets returning_customer: true so the LLM can greet them warmly by name/context.
+    if (state.status === 'confirmed' || state.status === 'closed') {
+      const previousBooking = {
+        lead_type: state.lead_type,
+        night_label: state.night_label || state.night_type,
+        collected_names: state.collected_names,
+      };
+      state = {
+        ...createState(subscriberId),
+        detected_gender: state.detected_gender,
+        username: state.username,
+        first_name: state.first_name,
+        conversation_history: state.conversation_history,
+        returning_customer: true,
+        previous_booking: previousBooking,
+      };
+    }
 
     // ── 4. Dedup guard — skip identical messages re-fired within 5 seconds ──
     // Catches ManyChat trigger re-fires that send the same message text again.

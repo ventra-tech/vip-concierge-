@@ -197,10 +197,19 @@ function buildInstruction(action, missingField, state, tableMinimum) {
     : '';
 
   switch (action) {
-    case 'rapport':
-      // Only reaches LLM when status === 'confirmed' (post-booking chat).
-      // The opening turn is handled by the hardcoded block in composeReply.
+    case 'rapport': {
+      // Returning customer — they've booked before and are back for another one
+      if (state.returning_customer) {
+        const prev = state.previous_booking;
+        const prevDesc = prev?.lead_type && prev?.night_label
+          ? `${prev.lead_type} booking for ${prev.night_label}`
+          : 'a booking';
+        const prevName = prev?.collected_names?.length > 0 ? ` (${prev.collected_names[0]})` : '';
+        return `This is a returning customer${prevName} — they previously completed ${prevDesc} with you. Welcome them back warmly, naturally, like you remember them. Keep it short and genuine. Then find out what they're looking for this time — what night, what occasion. Don't be formal about it, just be real.`;
+      }
+      // Post-booking chat — booking already confirmed, just chatting
       return `The booking is already confirmed and complete. The guest is just saying thanks or chatting. Respond with a short, warm closing — like "Amazing see you there! x" or "Can't wait 🥂". Do NOT repeat booking details or send any confirmation info.`;
+    }
 
     case 'ask_question':
       switch (missingField) {
@@ -286,6 +295,9 @@ async function composeReply({
 
     // ── Hardcoded rapport opener — LLM has zero context on turn 1 ──
     case 'rapport': {
+      // Returning customer — LLM handles with full context of previous booking
+      if (state.returning_customer) break;
+
       if (state.status !== 'confirmed') {
         const gender = state.detected_gender;
         const maleOpeners = [

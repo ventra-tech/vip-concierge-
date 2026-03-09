@@ -113,6 +113,16 @@ function checkHandoffRequired({ messageType, messageText, state }) {
     return { required: true, reason: `other_venue_mentioned:${mentionedVenue}` };
   }
 
+  // Age queries — club is always 18+ but some nights are 21+, Sanad confirms
+  const agePhrase = [
+    'age limit', 'age requirement', 'minimum age', 'how old', 'old enough',
+    '18+', '21+', 'over 18', 'over 21', 'age to get in', 'age restriction',
+    'what age', 'age check',
+  ].some(p => lowerText.includes(p));
+  if (agePhrase) {
+    return { required: true, reason: 'age_query' };
+  }
+
   // Pre-dinner booking intent — only fires when someone is planning a meal before the club.
   // Must match specific phrases, not casual "pre drinks" questions.
   const preDinnerPhrases = [

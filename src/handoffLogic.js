@@ -358,6 +358,13 @@ function getHoldingMessage(state) {
   if (reason.includes('other_venue')) {
     return "Let me check what's available and get back to you shortly 😏";
   }
+  if (reason === 'age_query') {
+    const isMale = state.detected_gender === 'male';
+    const isFemale = state.detected_gender === 'female';
+    if (isMale) return "Club is always 18+ bro but some nights are 21+ — let me check for you 👀";
+    if (isFemale) return "Club is always 18+ darling but some nights are 21+ — let me check for you 👀 x";
+    return "Club is always 18+ but some nights are 21+ — let me check for you 👀";
+  }
   if (reason.includes('ratio') || reason.includes('borderline')) {
     return "Let me check this for you bro 👀 I'll confirm shortly";
   }
@@ -458,6 +465,7 @@ function resumeAfterHandoff(subscriberId, decision, extra = {}) {
 
 function formatHandoffReason(reason) {
   const map = {
+    age_query: '🪪 Age query — confirm minimum age for this night',
     voice_message_received: '🎤 Voice note received',
     image_message_received: '📸 Image received',
     video_message_received: '🎥 Video received',
