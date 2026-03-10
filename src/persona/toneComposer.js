@@ -68,6 +68,7 @@ TONE: ${tone}${toneLock}
 VENUE KNOWLEDGE:
 - Club: Reign (also called "London Reign")
 - Address: 215, The London Reign, 217 Piccadilly, London W1J 9HN (nearest tube: Piccadilly Circus)
+- Opening nights: Tuesday, Thursday, Friday, Saturday ONLY. NOT open Sunday, Monday, or Wednesday. If someone asks about a night Reign is closed, tell them honestly and suggest the nearest open night.
 - Entry fee: £20 for guestlist
 - Arrival: Must arrive by 11pm (11:30pm–midnight at the latest)
 - Dress code girls: elegant & heels
