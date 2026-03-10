@@ -90,14 +90,41 @@ function evaluateGuestlistEligibility({ guys, girls, nightType }) {
   return { decision: 'handoff', reason: 'unknown_group_composition' };
 }
 
+// ─── VENUE SCHEDULE ───────────────────────────────────────────────────────────
+
+const REIGN_OPEN_DAYS = ['tuesday', 'thursday', 'friday', 'saturday'];
+
+const VENUE_SCHEDULE = {
+  'cirque le soir': ['monday', 'wednesday', 'friday', 'saturday'],
+  'tabu':           ['wednesday', 'thursday', 'friday', 'saturday'],
+  'coco':           ['wednesday', 'friday', 'saturday'],
+  'maddox':         ['thursday', 'friday', 'saturday'],
+  'selene':         ['friday', 'saturday', 'sunday'],
+  'dear darling':   ['thursday', 'friday', 'saturday', 'sunday'],
+  'tape':           ['tuesday', 'friday', 'saturday', 'sunday'],
+};
+
+/**
+ * Returns true if Reign is open on the given day name, false if not, null if unknown.
+ * @param {string|null} dayName - e.g. 'friday', 'saturday'
+ * @returns {boolean|null}
+ */
+function isReignOpenOn(dayName) {
+  if (!dayName) return null;
+  return REIGN_OPEN_DAYS.includes(dayName.toLowerCase());
+}
+
 // ─── HANDOFF TRIGGER CHECK ───────────────────────────────────────────────────
 
-const OTHER_VENUES = ['tabu', 'cirque le soir', 'maddox', 'selene', 'dear darling'];
+const OTHER_VENUES = ['tabu', 'cirque le soir', 'maddox', 'selene', 'dear darling', 'tape', 'coco'];
 
 /**
  * Checks whether this message or state requires an immediate handoff.
+ * Returns { required, reason } for handoffs, or { required: false, otherVenueDetected, mentionedVenue }
+ * when a venue is detected but we should pitch Reign first instead of handing off.
+ *
  * @param {{ messageType: string, messageText: string, state: object }} params
- * @returns {{ required: boolean, reason: string|null }}
+ * @returns {{ required: boolean, reason: string|null, otherVenueDetected?: boolean, mentionedVenue?: string }}
  */
 function checkHandoffRequired({ messageType, messageText, state }) {
   // Voice / image / video messages
@@ -107,10 +134,21 @@ function checkHandoffRequired({ messageType, messageText, state }) {
 
   const lowerText = messageText.toLowerCase();
 
-  // Other venue mentions
+  // ── Other venue handling — pitch Reign first, only handoff if they insist ──
+
+  // If we've already pitched Reign, check if customer is dismissing it
+  if (state.mentioned_venue && state.reign_pitched) {
+    const venue = state.mentioned_venue;
+    const insistSignals = [venue, 'nah', 'no thanks', 'prefer', 'rather', 'stick with', 'still going', 'still want', 'pass on reign', 'not reign', "don't want reign"];
+    if (insistSignals.some(s => lowerText.includes(s))) {
+      return { required: true, reason: `other_venue_insists:${venue}` };
+    }
+  }
+
+  // Fresh mention of another venue — don't handoff yet, pitch Reign first
   const mentionedVenue = OTHER_VENUES.find((v) => lowerText.includes(v));
   if (mentionedVenue) {
-    return { required: true, reason: `other_venue_mentioned:${mentionedVenue}` };
+    return { required: false, reason: null, otherVenueDetected: true, mentionedVenue };
   }
 
   // Age queries — club is always 18+ but some nights are 21+, Sanad confirms
@@ -269,4 +307,7 @@ module.exports = {
   detectNightType,
   getNightLabel,
   OTHER_VENUES,
+  VENUE_SCHEDULE,
+  REIGN_OPEN_DAYS,
+  isReignOpenOn,
 };

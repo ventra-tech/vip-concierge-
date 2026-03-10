@@ -355,6 +355,13 @@ function getHoldingMessage(state) {
   if (reason.includes('image') || reason.includes('video')) {
     return "Got it ❤️‍🔥 I'll get back to you shortly 👀";
   }
+  if (reason.startsWith('other_venue_insists:')) {
+    const venue = reason.split(':')[1];
+    const venueCap = venue.charAt(0).toUpperCase() + venue.slice(1);
+    if (isMale) return `No worries bro 🙌 Let me sort you out for ${venueCap} — give me a sec`;
+    if (isFemale) return `No worries darling x Let me sort you out for ${venueCap} — give me a sec`;
+    return `No worries 🙌 Let me sort you out for ${venueCap} — give me a sec`;
+  }
   if (reason.includes('other_venue')) {
     return "Let me check what's available and get back to you shortly 😏";
   }
@@ -393,9 +400,10 @@ function getHoldingMessage(state) {
  * Valid decisions Sanad can make after a handoff.
  */
 const SANAD_DECISIONS = {
-  APPROVE: 'approve',              // Smart approve — routes to guestlist or table based on lead_type
+  APPROVE: 'approve',              // Smart approve — routes to guestlist, table, or other venue based on state
   APPROVE_GUESTLIST: 'approve_guestlist',
   APPROVE_TABLE: 'approve_table',
+  APPROVE_OTHER_VENUE: 'approve_other_venue',  // Customer insisted on another venue — Sanad sorted it
   PUSH_TABLE: 'push_table',
   REJECT: 'reject',
   CUSTOM: 'custom',
@@ -423,6 +431,11 @@ function resumeAfterHandoff(subscriberId, decision, extra = {}) {
     case SANAD_DECISIONS.APPROVE_TABLE:
       resumeData = { status: 'confirmed', lead_type: 'table', paused: false };
       nextAction = 'approve_table';
+      break;
+
+    case SANAD_DECISIONS.APPROVE_OTHER_VENUE:
+      resumeData = { status: 'confirmed', paused: false };
+      nextAction = 'approve_other_venue';
       break;
 
     case SANAD_DECISIONS.PUSH_TABLE:
@@ -488,6 +501,13 @@ function formatHandoffReason(reason) {
   if (reason.startsWith('other_venue_mentioned:')) {
     const venue = reason.split(':')[1];
     return `🏢 Other venue mentioned: ${venue}`;
+  }
+
+  // Customer insisted on another venue after we pitched Reign
+  if (reason.startsWith('other_venue_insists:')) {
+    const venue = reason.split(':')[1];
+    const venueCap = venue.charAt(0).toUpperCase() + venue.slice(1);
+    return `🏢 Customer wants ${venueCap} (Reign pitched, they insisted) — sort them out`;
   }
 
   return map[reason] || reason;

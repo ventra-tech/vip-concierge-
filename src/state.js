@@ -67,6 +67,8 @@ function createState(subscriberId) {
     last_message_at: null,          // Dedup guard: epoch ms of last processed message
     returning_customer: false,      // True if this subscriber has completed a booking before
     previous_booking: null,         // Snapshot of last booking { lead_type, night_label, collected_names }
+    mentioned_venue: null,          // Other venue they asked about e.g. 'maddox', 'tape'
+    reign_pitched: false,           // Whether we've pitched Reign as an alternative to their venue
   };
 }
 

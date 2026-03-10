@@ -262,6 +262,17 @@ function buildInstruction(action, missingField, state, tableMinimum) {
           return `${context}Continue naturally and gather the missing info: ${missingField}.`;
       }
 
+    case 'pitch_reign': {
+      const venue = state.mentioned_venue || 'that venue';
+      const venueCap = venue.charAt(0).toUpperCase() + venue.slice(1);
+      const reignNights = 'Tuesday, Thursday, Friday and Saturday';
+      // Check if we know the night — if so, mention Reign is open that night
+      const nightContext = state.night_label
+        ? ` and we're actually open ${state.night_label} as well`
+        : ` — we run Tuesday, Thursday, Friday and Saturday`;
+      return `The guest mentioned ${venueCap}. Briefly and naturally plant the seed for Reign — it's premium Mayfair, live shows, VIP crowd${nightContext}. Make Reign sound like the better move. Keep it very short and casual — 1-2 lines. Then ask if they want to check Reign out or if they're set on ${venueCap}.`;
+    }
+
     case 'answer_question':
       return `The guest has a question about the venue. Answer it accurately based on your venue knowledge. Keep it short and natural.`;
 
@@ -334,6 +345,15 @@ async function composeReply({
 
     case 'reject':
       return rejectionMessage(state);
+
+    case 'approve_other_venue': {
+      const venue = state.mentioned_venue || 'the venue';
+      const venueCap = venue.charAt(0).toUpperCase() + venue.slice(1);
+      if (state.detected_gender === 'female') {
+        return `Sorted darling 🥂 You're all set for ${venueCap} — Sanad will reach out shortly with the details x`;
+      }
+      return `Sorted bro 🍾 You're all set for ${venueCap} — Sanad will reach out shortly with the details`;
+    }
   }
 
   // ── Everything else — LLM with full conversation history and rich instruction ──

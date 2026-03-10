@@ -295,10 +295,16 @@ async function resumeFromHandoff(resumeBody) {
   const { subscriberId, extra = {} } = resumeBody;
   let { decision } = resumeBody;
 
-  // Smart approve — route to guestlist or table based on current lead_type
+  // Smart approve — route to guestlist, table, or other venue based on current state
   if (decision === 'approve') {
     const currentState = getSession(subscriberId);
-    decision = currentState.lead_type === 'table' ? 'approve_table' : 'approve_guestlist';
+    if (currentState.handoff_reason?.startsWith('other_venue_insists:')) {
+      decision = 'approve_other_venue';
+    } else if (currentState.lead_type === 'table') {
+      decision = 'approve_table';
+    } else {
+      decision = 'approve_guestlist';
+    }
   }
 
   const { resumedState, nextAction } = resumeAfterHandoff(subscriberId, decision, extra);

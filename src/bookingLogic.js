@@ -254,6 +254,19 @@ function decideNextAction(state, routerOutput) {
   // ── Step 2: Merge router data into state ──
   let updatedState = mergeRouterIntoState(state, routerOutput, intent);
 
+  // ── Step 2b: Other venue detected — pitch Reign first instead of handing off ──
+  if (handoffCheck.otherVenueDetected) {
+    // Direct spread (mergeRouterIntoState already bumped turn_count once)
+    updatedState = { ...updatedState, mentioned_venue: handoffCheck.mentionedVenue, reign_pitched: true };
+    return {
+      action: 'pitch_reign',
+      updatedState,
+      missingField: null,
+      tableMinimum: null,
+      eligibilityResult: null,
+    };
+  }
+
   // ── Step 3: Handle venue FAQ questions — always answer regardless of lead type ──
   if (intent === 'question') {
     return {
