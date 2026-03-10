@@ -136,6 +136,8 @@ app.get('/resume', async (req, res) => {
 
     const decisionLabels = {
       approve_guestlist: '✅ Guestlist Approved',
+      approve_table: '✅ Table Confirmed',
+      approve_other_venue: '✅ Other Venue Sorted',
       push_table: '🍾 Pushed to Table',
       reject: '❌ Rejected',
       manual_override: '👤 Manual Override — AI Paused',
@@ -154,9 +156,12 @@ app.get('/resume', async (req, res) => {
     } else if (sendStatus === 'failed') {
       statusBlock = `
         <div style="background:#fff0f0;border:1px solid #FF4444;border-radius:8px;padding:12px;margin:12px 0;">
-          <strong>❌ Message failed to send</strong><br>
+          <strong>❌ Message failed to send automatically</strong><br>
           <span style="color:#c00;font-size:13px;">${sendError}</span><br><br>
-          <span style="font-size:12px;color:#888;">Reply text was: <em>"${result.reply_text}"</em></span>
+          <strong>Send this manually on Instagram:</strong><br>
+          <div style="background:#f9f9f9;border:1px solid #ddd;border-radius:6px;padding:10px;margin-top:8px;font-size:14px;word-break:break-word;">
+            ${result.reply_text}
+          </div>
         </div>`;
     } else {
       statusBlock = `<p style="color:#888;">No message sent — manual override active. Reply directly on Instagram.</p>`;

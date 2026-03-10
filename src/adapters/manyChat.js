@@ -105,6 +105,7 @@ async function sendTextMessage(subscriberId, text) {
 
   const body = {
     subscriber_id: subscriberId,
+    ...(config.manyChat.pageId ? { page_id: parseInt(config.manyChat.pageId, 10) } : {}),
     data: {
       version: 'v2',
       content: {
