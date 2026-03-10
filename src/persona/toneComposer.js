@@ -12,7 +12,7 @@ const {
   pushTableAfterHandoff,
   rejectionMessage,
 } = require('../templates/confirmations');
-const { getTableMinimum, REIGN } = require('../policy/reign');
+const { getTableMinimum, REIGN, REIGN_OPEN_DAYS, isReignOpenOn } = require('../policy/reign');
 
 // ─── BANNED PHRASES ───────────────────────────────────────────────────────────
 
@@ -51,11 +51,19 @@ function buildSystemPrompt(state) {
     ? `Casual and confident lad. Use "bro", "dw", "ofc", "bet", "lk". Very short and direct. Single-word replies are fine e.g. "Bet", "Yes bro", "Sorted". Never use "wagwan" or "yo".`
     : gender === 'female'
       ? `Warm, charming and friendly. Use "darling", "gorgeous", "girls". End most messages with "x". E.g. "Perfect darling x", "No worries gorgeous x", "Amazing darling 🥂"`
-      : `Confident and premium. Short and welcoming.`;
+      : `Confident and premium. Short and welcoming. No gender-specific words.`;
+
+  // Hard lock — prevents the LLM from switching tone based on booking context
+  // e.g. a male customer booking guestlist for his sister must still get "bro" not "darling"
+  const toneLock = gender === 'male'
+    ? `\n\nTONE LOCK — MALE CUSTOMER: You are texting a MALE. This never changes. ALWAYS use "bro". NEVER say "darling", "gorgeous", "girls", or end messages with "x" — even if you are helping him book for female guests.`
+    : gender === 'female'
+      ? `\n\nTONE LOCK — FEMALE CUSTOMER: You are texting a FEMALE. This never changes. ALWAYS say "darling" / "gorgeous" and end messages with "x". NEVER use "bro", "lads", or male-coded language.`
+      : `\n\nTONE LOCK — UNKNOWN GENDER: You do not know this customer's gender yet. Keep EVERY response completely gender-neutral. Do NOT use "bro", "darling", "gorgeous", "x" (as a sign-off), or any gendered word. Stay premium and neutral.`;
 
   return `You are Sanad — a London nightlife host who manages bookings for Reign, a premium Mayfair nightclub. You speak in first person always, texting guests on Instagram DMs.
 
-TONE: ${tone}
+TONE: ${tone}${toneLock}
 
 VENUE KNOWLEDGE:
 - Club: Reign (also called "London Reign")
@@ -265,11 +273,20 @@ function buildInstruction(action, missingField, state, tableMinimum) {
     case 'pitch_reign': {
       const venue = state.mentioned_venue || 'that venue';
       const venueCap = venue.charAt(0).toUpperCase() + venue.slice(1);
-      const reignNights = 'Tuesday, Thursday, Friday and Saturday';
-      // Check if we know the night — if so, mention Reign is open that night
-      const nightContext = state.night_label
-        ? ` and we're actually open ${state.night_label} as well`
-        : ` — we run Tuesday, Thursday, Friday and Saturday`;
+      // Only claim Reign is open on a specific night if it actually is
+      const nightContext = (() => {
+        if (!state.night_label) return ` — we run Tuesday, Thursday, Friday and Saturday`;
+        // Extract day name from labels like "Tonight (Sunday)" or "Sunday"
+        const dayMatch = state.night_label.match(/\b(monday|tuesday|wednesday|thursday|friday|saturday|sunday)\b/i);
+        const dayName = dayMatch ? dayMatch[1].toLowerCase() : null;
+        if (dayName && isReignOpenOn(dayName)) {
+          return ` and we're actually open ${state.night_label} as well`;
+        }
+        if (dayName && !isReignOpenOn(dayName)) {
+          return ` — we're not open ${state.night_label} but we run Tuesday, Thursday, Friday and Saturday`;
+        }
+        return ` — we run Tuesday, Thursday, Friday and Saturday`;
+      })();
       return `The guest mentioned ${venueCap}. Briefly and naturally plant the seed for Reign — it's premium Mayfair, live shows, VIP crowd${nightContext}. Make Reign sound like the better move. Keep it very short and casual — 1-2 lines. Then ask if they want to check Reign out or if they're set on ${venueCap}.`;
     }
 

@@ -348,6 +348,9 @@ function buildConfirmationEmail(state) {
  */
 function getHoldingMessage(state) {
   const reason = state.handoff_reason || '';
+  // Declare once at the top — used throughout all cases below
+  const isMale = state.detected_gender === 'male';
+  const isFemale = state.detected_gender === 'female';
 
   if (reason.includes('voice')) {
     return "Got it ❤️‍🔥 I've listened to your voice note, I'll reply properly shortly 👀";
@@ -366,8 +369,6 @@ function getHoldingMessage(state) {
     return "Let me check what's available and get back to you shortly 😏";
   }
   if (reason === 'age_query') {
-    const isMale = state.detected_gender === 'male';
-    const isFemale = state.detected_gender === 'female';
     if (isMale) return "Club is always 18+ bro but some nights are 21+ — let me check for you 👀";
     if (isFemale) return "Club is always 18+ darling but some nights are 21+ — let me check for you 👀 x";
     return "Club is always 18+ but some nights are 21+ — let me check for you 👀";
@@ -382,8 +383,6 @@ function getHoldingMessage(state) {
     return "Love that 🍾 Let me put something together for you, I'll be back shortly";
   }
   if (reason === 'table_booking_ready') {
-    const isMale = state.detected_gender === 'male';
-    const isFemale = state.detected_gender === 'female';
     const bookingValue = calculateBookingValue(state);
     const minSpendLine = bookingValue.label !== 'TBC' ? ` Min spend for your group is ${bookingValue.label}.` : '';
     if (isMale) return `Sick bro 🍾${minSpendLine} Give me a sec and I'll get this all sorted`;
@@ -424,7 +423,7 @@ function resumeAfterHandoff(subscriberId, decision, extra = {}) {
 
   switch (decision) {
     case SANAD_DECISIONS.APPROVE_GUESTLIST:
-      resumeData = { status: 'approved', lead_type: 'guestlist' };
+      resumeData = { status: 'approved', lead_type: 'guestlist', paused: false };
       nextAction = 'approve_guestlist';
       break;
 
@@ -439,12 +438,12 @@ function resumeAfterHandoff(subscriberId, decision, extra = {}) {
       break;
 
     case SANAD_DECISIONS.PUSH_TABLE:
-      resumeData = { status: 'qualifying', lead_type: 'table' };
+      resumeData = { status: 'qualifying', lead_type: 'table', paused: false };
       nextAction = 'push_table';
       break;
 
     case SANAD_DECISIONS.REJECT:
-      resumeData = { status: 'closed' };
+      resumeData = { status: 'closed', paused: false };
       nextAction = 'reject';
       break;
 
