@@ -68,8 +68,20 @@ app.post('/message', async (req, res) => {
 
     const result = await processMessage(body);
 
+    // Promote LOG_TO_SHEETS data to the top level so n8n can access it simply
+    // as $json.log_to_sheets.metrics_row[0] etc. instead of digging into actions array.
+    const sheetsAction = (result.actions || []).find(a => a.type === 'LOG_TO_SHEETS');
+
     // Return the full result to n8n
-    res.json(result);
+    res.json({
+      ...result,
+      ...(sheetsAction ? {
+        log_to_sheets: {
+          metrics_row: sheetsAction.metrics_row,
+          conversations_row: sheetsAction.conversations_row,
+        }
+      } : {}),
+    });
 
   } catch (err) {
     console.error('[server] /message error:', err.message);
