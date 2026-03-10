@@ -12,7 +12,7 @@ const {
   pushTableAfterHandoff,
   rejectionMessage,
 } = require('../templates/confirmations');
-const { getTableMinimum, REIGN, REIGN_OPEN_DAYS, isReignOpenOn } = require('../policy/reign');
+const { getTableMinimum, REIGN, REIGN_OPEN_DAYS, VENUE_SCHEDULE, isReignOpenOn } = require('../policy/reign');
 
 // ─── BANNED PHRASES ───────────────────────────────────────────────────────────
 
@@ -42,6 +42,55 @@ function stripBannedPhrases(text) {
   return result.trim();
 }
 
+// ─── NIGHT CONTEXT BUILDER ────────────────────────────────────────────────────
+
+/**
+ * Generates a compact "what's open tonight" block injected into the system prompt.
+ * Called once per message — lets the LLM know exactly which clubs are open/closed
+ * on the customer's chosen night before any venue question comes up.
+ *
+ * @param {string|null} nightLabel - e.g. "Sunday", "Tonight (Friday)", "Saturday"
+ * @returns {string} Multiline context block, or '' if night is unknown
+ */
+function buildNightContext(nightLabel) {
+  if (!nightLabel) return '';
+
+  // Extract a plain day name from labels like "Tonight (Sunday)" or "Saturday night"
+  const dayMatch = nightLabel.match(/\b(monday|tuesday|wednesday|thursday|friday|saturday|sunday)\b/i);
+  if (!dayMatch) return '';
+
+  const dayName = dayMatch[1].toLowerCase();
+  const reignOpen = REIGN_OPEN_DAYS.includes(dayName);
+
+  // Split all tracked venues into open / closed for this night
+  const openVenues = [];
+  const closedVenues = [];
+  for (const [venue, days] of Object.entries(VENUE_SCHEDULE)) {
+    const label = venue.charAt(0).toUpperCase() + venue.slice(1);
+    if (days.includes(dayName)) openVenues.push(label);
+    else closedVenues.push(label);
+  }
+
+  const reignLine = reignOpen
+    ? `Reign IS open on ${nightLabel} ✓ — you can confidently book for this night`
+    : `Reign is NOT open on ${nightLabel} — do NOT book for this night. Suggest nearest open night (Tue/Thu/Fri/Sat) instead`;
+
+  const lines = [
+    ``,
+    `NIGHT CONTEXT — ${nightLabel.toUpperCase()}:`,
+    `- ${reignLine}`,
+  ];
+
+  if (openVenues.length > 0) {
+    lines.push(`- Competitor venues OPEN on ${nightLabel}: ${openVenues.join(', ')}`);
+  }
+  if (closedVenues.length > 0) {
+    lines.push(`- Competitor venues CLOSED on ${nightLabel}: ${closedVenues.join(', ')}`);
+  }
+
+  return lines.join('\n');
+}
+
 // ─── SYSTEM PROMPT ────────────────────────────────────────────────────────────
 
 function buildSystemPrompt(state) {
@@ -61,10 +110,12 @@ function buildSystemPrompt(state) {
       ? `\n\nTONE LOCK — FEMALE CUSTOMER: You are texting a FEMALE. This never changes. ALWAYS say "darling" / "gorgeous" and end messages with "x". NEVER use "bro", "lads", or male-coded language.`
       : `\n\nTONE LOCK — UNKNOWN GENDER: You do not know this customer's gender yet. Keep EVERY response completely gender-neutral. Do NOT use "bro", "darling", "gorgeous", "x" (as a sign-off), or any gendered word. Stay premium and neutral.`;
 
+  const nightContext = buildNightContext(state.night_label);
+
   return `You are Sanad — a London nightlife host who manages bookings for Reign, a premium Mayfair nightclub. You speak in first person always, texting guests on Instagram DMs.
 
 TONE: ${tone}${toneLock}
-
+${nightContext}
 VENUE KNOWLEDGE:
 - Club: Reign (also called "London Reign")
 - Address: 215, The London Reign, 217 Piccadilly, London W1J 9HN (nearest tube: Piccadilly Circus)
