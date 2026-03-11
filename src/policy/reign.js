@@ -94,6 +94,10 @@ function evaluateGuestlistEligibility({ guys, girls, nightType }) {
 
 const REIGN_OPEN_DAYS = ['tuesday', 'thursday', 'friday', 'saturday'];
 
+// Priority order for pitching partner venues when Reign is closed.
+// First in the list = pitch first.
+const VENUE_PRIORITY = ['tabu', 'cirque le soir', 'coco', 'maddox', 'dear darling', 'tape', 'selene'];
+
 const VENUE_SCHEDULE = {
   'cirque le soir': ['monday', 'wednesday', 'friday', 'saturday'],
   'tabu':           ['wednesday', 'thursday', 'friday', 'saturday'],
@@ -309,5 +313,6 @@ module.exports = {
   OTHER_VENUES,
   VENUE_SCHEDULE,
   REIGN_OPEN_DAYS,
+  VENUE_PRIORITY,
   isReignOpenOn,
 };

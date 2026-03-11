@@ -12,7 +12,7 @@ const {
   pushTableAfterHandoff,
   rejectionMessage,
 } = require('../templates/confirmations');
-const { getTableMinimum, REIGN, REIGN_OPEN_DAYS, VENUE_SCHEDULE, isReignOpenOn } = require('../policy/reign');
+const { getTableMinimum, REIGN, REIGN_OPEN_DAYS, VENUE_SCHEDULE, VENUE_PRIORITY, isReignOpenOn } = require('../policy/reign');
 
 // ─── BANNED PHRASES ───────────────────────────────────────────────────────────
 
@@ -73,7 +73,7 @@ function buildNightContext(nightLabel) {
 
   const reignLine = reignOpen
     ? `Reign IS open on ${nightLabel} ✓ — you can confidently book for this night`
-    : `Reign is NOT open on ${nightLabel} — do NOT book for this night. Suggest nearest open night (Tue/Thu/Fri/Sat) instead`;
+    : `Reign is NOT open on ${nightLabel} — do NOT book for this night`;
 
   const lines = [
     ``,
@@ -81,11 +81,20 @@ function buildNightContext(nightLabel) {
     `- ${reignLine}`,
   ];
 
-  if (openVenues.length > 0) {
-    lines.push(`- Competitor venues OPEN on ${nightLabel}: ${openVenues.join(', ')}`);
-  }
-  if (closedVenues.length > 0) {
-    lines.push(`- Competitor venues CLOSED on ${nightLabel}: ${closedVenues.join(', ')}`);
+  if (!reignOpen) {
+    // Show priority-ordered open venues so the LLM knows exactly what to pitch
+    const pitchOrder = VENUE_PRIORITY
+      .filter(v => (VENUE_SCHEDULE[v] || []).includes(dayName))
+      .map(v => v.charAt(0).toUpperCase() + v.slice(1));
+    if (pitchOrder.length > 0) {
+      lines.push(`- Partner venues OPEN on ${nightLabel} (pitch in this order): ${pitchOrder.join(' → ')}`);
+    } else {
+      lines.push(`- No partner venues open on ${nightLabel} either — suggest Reign on a different night`);
+    }
+  } else {
+    if (openVenues.length > 0) {
+      lines.push(`- Competitor venues also open: ${openVenues.join(', ')}`);
+    }
   }
 
   return lines.join('\n');
@@ -117,7 +126,15 @@ function buildSystemPrompt(state) {
   const _now = new Date();
   const todayName = _DAYS[_now.getDay()];
   const reignOpenToday = REIGN_OPEN_DAYS.includes(todayName.toLowerCase());
-  const todayContext = `TODAY IS ${todayName.toUpperCase()}. Reign is ${reignOpenToday ? 'OPEN tonight' : 'CLOSED tonight (not open on ' + todayName + 's)'}. If someone says "tonight" or "today", this is what you're working with.`;
+  const todayPitchOrder = VENUE_PRIORITY
+    .filter(v => (VENUE_SCHEDULE[v] || []).includes(todayName.toLowerCase()))
+    .map(v => v.charAt(0).toUpperCase() + v.slice(1));
+  const todayContext = reignOpenToday
+    ? `TODAY IS ${todayName.toUpperCase()}. Reign is OPEN tonight. If someone says "tonight" or "today", this is what you're working with.`
+    : `TODAY IS ${todayName.toUpperCase()}. Reign is CLOSED tonight (not open on ${todayName}s). If someone says "tonight" or asks what's on tonight, DO NOT say Reign is open. ` +
+      (todayPitchOrder.length > 0
+        ? `Offer partner venues instead in this priority order: ${todayPitchOrder.join(' → ')}.`
+        : `No partner venues are open tonight — suggest Reign on a different night.`);
 
   return `You are Sanad — a London nightlife host who manages bookings for Reign, a premium Mayfair nightclub. You speak in first person always, texting guests on Instagram DMs.
 
@@ -139,6 +156,12 @@ VENUE KNOWLEDGE:
 - Drinks: Complimentary drinks included on the VIP table/guestlist
 - Vibe: Premium, exclusive, Mayfair crowd, live shows
 - Bottle/drinks menu: NEVER share the menu or bottle prices on chat — it's a VIP experience, the menu is kept exclusive. If asked, tell them they'll see the full menu at the door or inside the club. Make it sound like a feature, not a deflection.
+
+PARTNER VENUES (when Reign is closed on the requested night):
+- You have connections at partner venues: Tabu, Cirque le Soir, Coco, Maddox, Dear Darling, Tape, Selene
+- When Reign is closed and a customer asks about tonight or other clubs, pitch the best available partner venue (use the pitch order in the night context above)
+- Keep the pitch short — name the venue, say you can sort them, ask if they're interested
+- You CAN book at these venues — never say "I only know Reign" or "I don't have info on other clubs"
 
 GUESTLIST RULES:
 - Guestlist is for GIRLS ONLY (free entry with complimentary drinks)
