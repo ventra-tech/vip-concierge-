@@ -141,28 +141,33 @@ function mergeRouterIntoState(state, routerOutput, intent) {
     // Also allow if names already partially collected (user sending more)
     (state.collected_names.length > 0 && prevNeed === 'instagram_handles');
 
-  if (namesExpected && routerOutput.rawText) {
-    const rawParts = routerOutput.rawText
-      .split(/[,\n]+/)
-      .map(p => p
-        .replace(/@[\w.]+/g, '')                                           // strip @handles
-        .replace(/(?:https?:\/\/)?(?:www\.)?instagram\.com\/\S+/gi, '')    // strip instagram links
-        .replace(/\+?(?:44|0)[\d\s\-()]{9,}/g, '')                         // strip UK phone numbers (+44xxx, 07xxx, 447xxx)
-        .replace(/^\d+[.)]\s*/, '')                                        // strip list numbers "1. "
-        .replace(/^[-–—|:,]\s*/, '')                                       // strip leading separators
-        .replace(/\s*[-–—|:,]+\s*$/, '')                                   // strip trailing separators
-        .trim()
-      )
-      .filter(p => p.length > 1);                                          // drop empty/single-char
+  if (namesExpected) {
+    // Use router-extracted names first (handles comma lists, multi-line, single first names, etc.)
+    // Fall back to rawText re-parsing for edge cases the router misses.
+    let namesToAdd = [];
 
-    // Only store text that actually looks like a name (2–3 words, letters only).
-    // This blocks sentences like "can we be on the guestlist instead" from being
-    // saved as a collected name when the user goes off-script mid-flow.
-    const NAME_LIKE = /^[A-Za-z]+([-'][A-Za-z]+)?(\s+[A-Za-z]+([-'][A-Za-z]+)?){1,2}$/;
-    const validNames = rawParts.filter(p => NAME_LIKE.test(p));
-    if (validNames.length > 0) {
+    if (routerOutput.names && routerOutput.names.length > 0) {
+      namesToAdd = routerOutput.names;
+    } else if (routerOutput.rawText) {
+      const rawParts = routerOutput.rawText
+        .split(/[,\n]+/)
+        .map(p => p
+          .replace(/@[\w.]+/g, '')                                           // strip @handles
+          .replace(/(?:https?:\/\/)?(?:www\.)?instagram\.com\/\S+/gi, '')    // strip instagram links
+          .replace(/\+?(?:44|0)[\d\s\-()]{9,}/g, '')                         // strip UK phone numbers
+          .replace(/^\d+[.)]\s*/, '')                                        // strip list numbers "1. "
+          .replace(/^[-–—|:,]\s*/, '')                                       // strip leading separators
+          .replace(/\s*[-–—|:,]+\s*$/, '')                                   // strip trailing separators
+          .trim()
+        )
+        .filter(p => p.length > 1);
+      const NAME_LIKE = /^[A-Za-z]+([-'][A-Za-z]+)?(\s+[A-Za-z]+([-'][A-Za-z]+)?){1,2}$/;
+      namesToAdd = rawParts.filter(p => NAME_LIKE.test(p));
+    }
+
+    if (namesToAdd.length > 0) {
       const existing = state.collected_names || [];
-      const merged = [...new Set([...existing, ...validNames])];
+      const merged = [...new Set([...existing, ...namesToAdd])];
       updates.collected_names = merged;
     }
   }

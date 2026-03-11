@@ -266,7 +266,10 @@ function extractNamesAndInstagram(text) {
         .replace(/\s*[-–—|:,]+\s*$/, '')
         .trim();
       // Allow: "First Last", "First-Last Last", "FIRST LAST", "First Last Last"
-      if (cleaned && /^[A-Za-z]+([-'][A-Za-z]+)?(\s+[A-Za-z]+([-'][A-Za-z]+)?)+$/.test(cleaned)) {
+      // Also allow single first names (min 3 letters, letters only) — e.g. "Sophie, Ella, Mia"
+      const isMultiWordName = /^[A-Za-z]+([-'][A-Za-z]+)?(\s+[A-Za-z]+([-'][A-Za-z]+)?)+$/.test(cleaned);
+      const isSingleFirstName = /^[A-Za-z]{3,}$/.test(cleaned);
+      if (cleaned && (isMultiWordName || isSingleFirstName)) {
         nameParts.push(cleaned);
       }
       // Non-matching parts are silently skipped (don't abort entire list)
