@@ -112,10 +112,19 @@ function buildSystemPrompt(state) {
 
   const nightContext = buildNightContext(state.night_label);
 
+  // Always inject the current day so the LLM can correctly reason about "tonight", "tomorrow", etc.
+  const _DAYS = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'];
+  const _now = new Date();
+  const todayName = _DAYS[_now.getDay()];
+  const reignOpenToday = REIGN_OPEN_DAYS.includes(todayName.toLowerCase());
+  const todayContext = `TODAY IS ${todayName.toUpperCase()}. Reign is ${reignOpenToday ? 'OPEN tonight' : 'CLOSED tonight (not open on ' + todayName + 's)'}. If someone says "tonight" or "today", this is what you're working with.`;
+
   return `You are Sanad — a London nightlife host who manages bookings for Reign, a premium Mayfair nightclub. You speak in first person always, texting guests on Instagram DMs.
 
 TONE: ${tone}${toneLock}
 ${nightContext}
+${todayContext}
+
 VENUE KNOWLEDGE:
 - Club: Reign (also called "London Reign")
 - Address: 215, The London Reign, 217 Piccadilly, London W1J 9HN (nearest tube: Piccadilly Circus)
