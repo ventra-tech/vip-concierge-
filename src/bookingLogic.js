@@ -125,13 +125,11 @@ function mergeRouterIntoState(state, routerOutput, intent) {
   // set night_type → make names the next need → wrongly capture "next weekend please" as a name.
   const prevNeed = getNextMissingField(state);
 
-  // Only store nightType when:
-  //   a) We're actively asking for it (prevNeed === 'night_type'), OR
-  //   b) The user has explicitly expressed a booking intent ('table'/'guestlist')
-  // This prevents casual mentions like "what's lit tonight?" from skipping the
-  // explicit night confirmation step — they may mean a completely different night.
-  const isExplicitBookingIntent = ['table', 'guestlist'].includes(intent);
-  if (routerOutput.nightType !== null && (prevNeed === 'night_type' || isExplicitBookingIntent)) {
+  // Only store nightType when the bot was actively asking for it.
+  // This prevents casual mentions like "fun tonight" or "heey table booking tonight"
+  // from silently skipping the night confirmation step.
+  // The bot must always explicitly ask and receive confirmation of which night.
+  if (routerOutput.nightType !== null && prevNeed === 'night_type') {
     updates.night_type = routerOutput.nightType;
     if (routerOutput.nightLabel) updates.night_label = routerOutput.nightLabel;
   }

@@ -66,14 +66,14 @@ function evaluateGuestlistEligibility({ guys, girls, nightType }) {
 
   if (guys === 2) {
     if (nightType === 'weekend') {
-      // Need 6–8 girls (3–4 per guy)
+      // Weekend: need 6+ girls — anything fewer goes to Sanad
       if (girls >= 6) return { decision: 'approved', reason: 'ratio_met_weekend' };
       if (girls === 0 || girls === null) return { decision: 'handoff', reason: 'ratio_unclear' };
       return { decision: 'handoff', reason: 'ratio_insufficient_weekend' };
     }
     if (nightType === 'weekday') {
-      // Need 4–6 girls (2–3 per guy)
-      if (girls >= 4) return { decision: 'approved', reason: 'ratio_met_weekday' };
+      // Weekday: 2:2 ratio minimum — 2+ girls approved
+      if (girls >= 2) return { decision: 'approved', reason: 'ratio_met_weekday' };
       if (girls === 0 || girls === null) return { decision: 'handoff', reason: 'ratio_unclear' };
       return { decision: 'handoff', reason: 'ratio_insufficient_weekday' };
     }
@@ -84,7 +84,9 @@ function evaluateGuestlistEligibility({ guys, girls, nightType }) {
   if (guys === 1) {
     if (girls >= 5) return { decision: 'approved', reason: 'solo_guy_ratio_met' };
     if (girls === 0 || girls === null) return { decision: 'handoff', reason: 'solo_guy_ratio_unclear' };
-    return { decision: 'push_table', reason: 'solo_guy_insufficient_girls' };
+    if (nightType === 'weekday') return { decision: 'approved', reason: 'solo_guy_weekday_approved' };
+    // Weekend with 1–4 girls — handoff to Sanad
+    return { decision: 'handoff', reason: 'solo_guy_insufficient_girls_weekend' };
   }
 
   return { decision: 'handoff', reason: 'unknown_group_composition' };
