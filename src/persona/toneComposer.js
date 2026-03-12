@@ -130,6 +130,33 @@ function buildTodayContext() {
     lines.push(`TODAY IS ${effectiveLabel.toUpperCase()}.`);
   }
 
+  // Helper: given a day name, build a venue summary string with cutoff times
+  const _DAYS_ORDER = ['sunday', 'monday', 'tuesday', 'wednesday', 'thursday', 'friday', 'saturday'];
+  const venueLineWithCutoffs = (venue, day) => {
+    const { VENUE_CUTOFFS } = require('../policy/reign');
+    const c = VENUE_CUTOFFS[venue]?.[day];
+    if (!c) return null;
+    const label = venue.split(' ').map(CAP).join(' ');
+    if (c.guestlist === null) return `${label} (advance booking only)`;
+    // During late night, check if still actually open
+    if (isLateNight) {
+      const nowMins = now.getHours() * 60 + now.getMinutes();
+      const glOpen = nowMins < _toMins(c.guestlist);
+      const tbOpen = nowMins < _toMins(c.table);
+      if (!glOpen && !tbOpen) return null; // fully closed, skip
+      const gl = glOpen ? `GL until ${c.guestlist}` : `GL closed`;
+      const tb = tbOpen ? `Table until ${c.table}` : `Table closed`;
+      return `${label} (${gl}, ${tb})`;
+    }
+    return `${label} (GL last entry ${c.guestlist}, Table last entry ${c.table})`;
+  };
+
+  // Helper: build next-night summary for a given day
+  const _toMins = (t) => { const [h, m] = t.split(':').map(Number); return h * 60 + m; };
+  const nextDayIndex = (_DAYS_ORDER.indexOf(effectiveDay) + 1) % 7;
+  const nextDay = _DAYS_ORDER[nextDayIndex];
+  const nextDayLabel = CAP(nextDay);
+
   // ── Reign status ──
   const reignOpen = REIGN_OPEN_DAYS.includes(effectiveDay);
   if (reignOpen) {
@@ -144,21 +171,45 @@ function buildTodayContext() {
       lines.push(`Reign IS OPEN ${effectiveLabel} night — Guestlist: ${gl}. Table: ${tb}.`);
 
       if (s.guestlistOpen === false && s.tableOpen === true) {
-        lines.push(`Guestlist has closed for tonight — table only. Redirect any guestlist requests to table.`);
+        lines.push(`Guestlist has closed — table only now. Redirect guestlist requests to table.`);
       } else if (s.guestlistOpen === false && s.tableOpen === false) {
-        lines.push(`Both guestlist AND table are CLOSED for tonight. Do not take bookings for tonight — offer the next open night instead.`);
+        lines.push(`Both guestlist AND table CLOSED for tonight.`);
+      }
+
+      // Partner venues open tonight — for when customer can't make Reign
+      const partnerTonight = VENUE_PRIORITY
+        .map(v => venueLineWithCutoffs(v, effectiveDay))
+        .filter(Boolean);
+      if (partnerTonight.length > 0) {
+        lines.push(`If customer can't make Reign tonight, alternatives still open on ${effectiveLabel}: ${partnerTonight.join('; ')}.`);
       }
     }
   } else {
     const pitchOrder = VENUE_PRIORITY
-      .filter(v => (VENUE_SCHEDULE[v] || []).includes(effectiveDay))
-      .map(CAP);
+      .map(v => venueLineWithCutoffs(v, effectiveDay))
+      .filter(Boolean);
     lines.push(`Reign is CLOSED on ${effectiveLabel}s.`);
     if (pitchOrder.length > 0) {
-      lines.push(`Partner venues open tonight — pitch in order: ${pitchOrder.join(' → ')}.`);
+      lines.push(`Partner venues open tonight — pitch in order: ${pitchOrder.join('; ')}.`);
     } else {
-      lines.push(`No partner venues open tonight either. Suggest Reign on a different night (Tue/Thu/Fri/Sat).`);
+      lines.push(`No partner venues open tonight. Suggest Reign on a different night (Tue/Thu/Fri/Sat).`);
     }
+  }
+
+  // ── Next night options (for "can't make tonight at all") ──
+  const reignOpenNextNight = REIGN_OPEN_DAYS.includes(nextDay);
+  const { VENUE_CUTOFFS: VC } = require('../policy/reign');
+  const nextNightOptions = [];
+  if (reignOpenNextNight) {
+    const rc = VC['reign']?.[nextDay];
+    if (rc) nextNightOptions.push(`Reign on ${nextDayLabel} (GL last entry ${rc.guestlist}, Table last entry ${rc.table})`);
+  }
+  VENUE_PRIORITY.forEach(v => {
+    const line = venueLineWithCutoffs(v, nextDay);
+    if (line) nextNightOptions.push(`${line.replace(/^/, '')} on ${nextDayLabel}`);
+  });
+  if (nextNightOptions.length > 0) {
+    lines.push(`If customer wants a different night entirely — options for ${nextDayLabel}: ${nextNightOptions.join('; ')}.`);
   }
 
   return lines.join(' ');
@@ -209,11 +260,14 @@ VENUE KNOWLEDGE:
 - Vibe: Premium, exclusive, Mayfair crowd, live shows
 - Bottle/drinks menu: NEVER share the menu or bottle prices on chat — it's a VIP experience, the menu is kept exclusive. If asked, tell them they'll see the full menu at the door or inside the club. Make it sound like a feature, not a deflection.
 
-PARTNER VENUES (when Reign is closed on the requested night):
+PARTNER VENUES (when Reign is closed or customer can't make it):
 - You have connections at partner venues: Tabu, Cirque le Soir, Coco, Maddox, Dear Darling, Tape, Selene
-- When Reign is closed and a customer asks about tonight or other clubs, pitch the best available partner venue (use the pitch order in the night context above)
-- Keep the pitch short — name the venue, say you can sort them, ask if they're interested
+- When Reign is closed OR a customer says they can't make it to Reign tonight, pitch the best available partner venue
+- Use the pitch order and cutoff times from the night context above — always mention last entry time when pitching
+- Keep the pitch short — name the venue, the night (actual day name), and the last entry time, ask if they're interested
 - You CAN book at these venues — never say "I only know Reign" or "I don't have info on other clubs"
+- Example: "I can sort you at Tabu tonight (Saturday), last entry 02:30 — want me to get you in?"
+- If they can't make any venue tonight, pitch the next night by its ACTUAL day name with last entry times
 
 GUESTLIST RULES:
 - Guestlist is for GIRLS ONLY (free entry with complimentary drinks)
@@ -240,6 +294,8 @@ CONVERSATION RULES:
 - NEVER say "all booked in", "you're confirmed", "you're on the list", "all sorted", "see you tonight", "see you there", "make sure to arrive" — the system sends the official confirmation separately, never jump ahead
 - NEVER say "adding you to the gc", "add you to the gc", "I'll add you to the gc", "added to the gc" — this only happens after the owner personally confirms, never say it before then
 - NEVER give out the address, entry fee, arrival time, dress code or door phrase in a chat message — that comes in the official confirmation only
+- NEVER say "tomorrow" — always use the actual day name (e.g. "Sunday", "Tuesday"). The customer doesn't know when "tomorrow" is in nightclub terms. Say "Sunday" not "tomorrow night".
+- When mentioning a venue for a specific night, ALWAYS include the last entry time so the customer knows if they can still make it
 
 REAL EXAMPLE CONVERSATIONS (this is exactly how you talk — match this style):
 
