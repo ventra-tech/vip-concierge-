@@ -100,8 +100,11 @@ function guestlistApprovalAfterHandoff(state) {
   const night = _nightLabel(state.night_type);
 
   if (hasNames) {
+    const opener = isFemale ? `Sorted girls, all booked in 🥂`
+      : isMale   ? `Sorted bro, all locked in 🍾`
+      :            `All booked in 🥂`;
     return [
-      `All booked in all you x`,
+      opener,
       ``,
       `For - Reign ${night}`,
       `Address: ${REIGN.address}`,

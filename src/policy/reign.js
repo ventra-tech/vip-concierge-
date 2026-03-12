@@ -428,7 +428,6 @@ module.exports = {
   REIGN,
   getTableMinimum,
   calculateBookingValue,
-  evaluateGuestlistEligibility,
   checkHandoffRequired,
   detectNightType,
   getNightLabel,
@@ -440,4 +439,5 @@ module.exports = {
   isReignOpenOn,
   getEffectiveNightclubDay,
   getVenueBookingStatus,
+  toMins: _toMins,
 };

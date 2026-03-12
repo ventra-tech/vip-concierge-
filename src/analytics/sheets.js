@@ -45,6 +45,8 @@
  * @param {import('../state').ConversationState} state
  * @returns {object} Action payload with type 'LOG_TO_SHEETS'
  */
+const { calculateBookingValue } = require('../policy/reign');
+
 function buildSheetsLog(outcome, state) {
   const ts = new Date().toISOString();
   const customer = state.username
@@ -114,16 +116,8 @@ function buildSheetsLog(outcome, state) {
 // ─── INTERNAL ─────────────────────────────────────────────────────────────────
 
 function _estimateValue(state) {
-  if (state.lead_type === 'table' && state.group_size) {
-    if (state.group_size <= 3) return 750;
-    if (state.group_size <= 6) return state.night_type === 'weekend' ? 1200 : 1000;
-    if (state.group_size <= 9) return 1750;
-    return 2250;
-  }
-  if (state.lead_type === 'guestlist') {
-    return (state.group_size || 1) * 20;
-  }
-  return null;
+  const { min } = calculateBookingValue(state);
+  return min || null;
 }
 
 module.exports = { buildSheetsLog };

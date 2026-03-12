@@ -107,6 +107,5 @@ module.exports = {
   saveSession,
   deleteSession,
   hasSession,
-  resumeSession,
   activeSessionCount,
 };

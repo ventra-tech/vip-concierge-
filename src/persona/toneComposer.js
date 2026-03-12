@@ -15,6 +15,7 @@ const {
 const {
   getTableMinimum, REIGN, REIGN_OPEN_DAYS, VENUE_SCHEDULE, VENUE_PRIORITY,
   isReignOpenOn, getEffectiveNightclubDay, getVenueBookingStatus,
+  VENUE_CUTOFFS, toMins,
 } = require('../policy/reign');
 
 // ─── BANNED PHRASES ───────────────────────────────────────────────────────────
@@ -67,11 +68,9 @@ function buildNightContext(nightLabel) {
 
   // Split all tracked venues into open / closed for this night
   const openVenues = [];
-  const closedVenues = [];
   for (const [venue, days] of Object.entries(VENUE_SCHEDULE)) {
     const label = venue.charAt(0).toUpperCase() + venue.slice(1);
     if (days.includes(dayName)) openVenues.push(label);
-    else closedVenues.push(label);
   }
 
   const reignLine = reignOpen
@@ -133,7 +132,6 @@ function buildTodayContext() {
   // Helper: given a day name, build a venue summary string with cutoff times
   const _DAYS_ORDER = ['sunday', 'monday', 'tuesday', 'wednesday', 'thursday', 'friday', 'saturday'];
   const venueLineWithCutoffs = (venue, day) => {
-    const { VENUE_CUTOFFS } = require('../policy/reign');
     const c = VENUE_CUTOFFS[venue]?.[day];
     if (!c) return null;
     const label = venue.split(' ').map(CAP).join(' ');
@@ -141,8 +139,8 @@ function buildTodayContext() {
     // During late night, check if still actually open
     if (isLateNight) {
       const nowMins = now.getHours() * 60 + now.getMinutes();
-      const glOpen = nowMins < _toMins(c.guestlist);
-      const tbOpen = nowMins < _toMins(c.table);
+      const glOpen = nowMins < toMins(c.guestlist);
+      const tbOpen = nowMins < toMins(c.table);
       if (!glOpen && !tbOpen) return null; // fully closed, skip
       const gl = glOpen ? `GL until ${c.guestlist}` : `GL closed`;
       const tb = tbOpen ? `Table until ${c.table}` : `Table closed`;
@@ -151,8 +149,7 @@ function buildTodayContext() {
     return `${label} (GL last entry ${c.guestlist}, Table last entry ${c.table})`;
   };
 
-  // Helper: build next-night summary for a given day
-  const _toMins = (t) => { const [h, m] = t.split(':').map(Number); return h * 60 + m; };
+  // Helper: next-night summary
   const nextDayIndex = (_DAYS_ORDER.indexOf(effectiveDay) + 1) % 7;
   const nextDay = _DAYS_ORDER[nextDayIndex];
   const nextDayLabel = CAP(nextDay);
@@ -198,15 +195,14 @@ function buildTodayContext() {
 
   // ── Next night options (for "can't make tonight at all") ──
   const reignOpenNextNight = REIGN_OPEN_DAYS.includes(nextDay);
-  const { VENUE_CUTOFFS: VC } = require('../policy/reign');
   const nextNightOptions = [];
   if (reignOpenNextNight) {
-    const rc = VC['reign']?.[nextDay];
+    const rc = VENUE_CUTOFFS['reign']?.[nextDay];
     if (rc) nextNightOptions.push(`Reign on ${nextDayLabel} (GL last entry ${rc.guestlist}, Table last entry ${rc.table})`);
   }
   VENUE_PRIORITY.forEach(v => {
     const line = venueLineWithCutoffs(v, nextDay);
-    if (line) nextNightOptions.push(`${line.replace(/^/, '')} on ${nextDayLabel}`);
+    if (line) nextNightOptions.push(`${line} on ${nextDayLabel}`);
   });
   if (nextNightOptions.length > 0) {
     lines.push(`If customer wants a different night entirely — options for ${nextDayLabel}: ${nextNightOptions.join('; ')}.`);

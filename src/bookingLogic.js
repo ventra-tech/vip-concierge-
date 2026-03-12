@@ -346,8 +346,8 @@ function decideNextAction(state, routerOutput) {
 function _resolveNightType(state) {
   if (state.night_type !== null) return state; // already known
   if ((state.night_type_asks || 0) >= 3) {
-    // Give up asking after 2 attempts — default to weekend
-    return updateState(state, { night_type: 'weekend', night_type_asks: (state.night_type_asks || 0) + 1 });
+    // Give up asking after 2 attempts — default to weekend (direct spread — no turn_count bump)
+    return { ...state, night_type: 'weekend', night_type_asks: (state.night_type_asks || 0) + 1 };
   }
   return null; // still need to ask
 }
@@ -369,7 +369,7 @@ function _handleGuestlistFlow(state) {
   if (getNextMissingField(s) === 'night_type') {
     const resolved = _resolveNightType(s);
     if (resolved) s = resolved;
-    else s = updateState(s, { night_type_asks: (s.night_type_asks || 0) + 1 });
+    else s = { ...s, night_type_asks: (s.night_type_asks || 0) + 1 };
   }
 
   const missingField = getNextMissingField(s);
@@ -377,8 +377,8 @@ function _handleGuestlistFlow(state) {
     return { action: 'ask_question', updatedState: s, missingField, tableMinimum: null, eligibilityResult: null };
   }
 
-  // All info collected — send confirmation
-  const confirmed = updateState(s, { status: 'confirmed' });
+  // All info collected — send confirmation (direct spread — no turn_count bump)
+  const confirmed = { ...s, status: 'confirmed' };
   return { action: 'confirm', updatedState: confirmed, missingField: null, tableMinimum: null, eligibilityResult: { decision: 'approved', reason: 'girls_only' } };
 }
 
@@ -397,7 +397,7 @@ function _handleTableFlow(state) {
     if (resolved) {
       s = resolved;
     } else {
-      s = updateState(s, { night_type_asks: (s.night_type_asks || 0) + 1 });
+      s = { ...s, night_type_asks: (s.night_type_asks || 0) + 1 };
     }
   }
 
@@ -412,13 +412,13 @@ function _handleTableFlow(state) {
 
     // Male/mixed group redirected from guestlist — Sanad must approve before confirming
     if (s.male_guestlist_redirect) {
-      const updated = updateState(s, { status: 'handoff', handoff_reason: 'male_guestlist_redirect', paused: true });
+      const updated = { ...s, status: 'handoff', handoff_reason: 'male_guestlist_redirect', paused: true };
       return { action: 'handoff', updatedState: updated, missingField: null, tableMinimum: tableMin, eligibilityResult: null };
     }
 
     // All info collected — alert Sanad to personally confirm with the guest.
     // Bot never auto-sends the table confirmation template; Sanad closes every table booking.
-    const updated = updateState(s, { status: 'handoff', handoff_reason: 'table_booking_ready', paused: true });
+    const updated = { ...s, status: 'handoff', handoff_reason: 'table_booking_ready', paused: true };
     return { action: 'handoff', updatedState: updated, missingField: null, tableMinimum: tableMin, eligibilityResult: null };
   }
 
