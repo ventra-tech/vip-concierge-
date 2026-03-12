@@ -118,6 +118,128 @@ function isReignOpenOn(dayName) {
   return REIGN_OPEN_DAYS.includes(dayName.toLowerCase());
 }
 
+// ─── VENUE BOOKING CUTOFFS ────────────────────────────────────────────────────
+// All times are HH:MM, 24h, UK local time (early morning after midnight).
+// null = advance booking only — no last-minute / walk-in entries (e.g. Maddox).
+
+const VENUE_CUTOFFS = {
+  'reign': {
+    'tuesday':  { guestlist: '02:00', table: '02:30' },
+    'thursday': { guestlist: '01:30', table: '02:00' },
+    'friday':   { guestlist: '01:30', table: '02:00' },
+    'saturday': { guestlist: '02:00', table: '03:00' },
+  },
+  'cirque le soir': {
+    'monday':    { guestlist: '02:00', table: '02:00' },
+    'wednesday': { guestlist: '02:00', table: '02:00' },
+    'friday':    { guestlist: '02:00', table: '02:00' },
+    'saturday':  { guestlist: '02:00', table: '02:00' },
+  },
+  'tabu': {
+    'wednesday': { guestlist: '02:00', table: '02:30' },
+    'thursday':  { guestlist: '02:00', table: '02:30' },
+    'friday':    { guestlist: '02:00', table: '02:30' },
+    'saturday':  { guestlist: '02:00', table: '02:30' },
+  },
+  'coco': {
+    'wednesday': { guestlist: '02:00', table: '02:00' },
+    'friday':    { guestlist: '02:00', table: '02:00' },
+    'saturday':  { guestlist: '02:00', table: '02:00' },
+  },
+  'maddox': {
+    'thursday': { guestlist: null, table: null },
+    'friday':   { guestlist: null, table: null },
+    'saturday': { guestlist: null, table: null },
+  },
+  'selene': {
+    'friday':   { guestlist: '01:30', table: '02:30' },
+    'saturday': { guestlist: '01:30', table: '02:30' },
+    'sunday':   { guestlist: '01:30', table: '02:30' },
+  },
+  'dear darling': {
+    'thursday': { guestlist: '01:30', table: '02:00' },
+    'friday':   { guestlist: '01:30', table: '02:00' },
+    'saturday': { guestlist: '01:30', table: '02:00' },
+    'sunday':   { guestlist: '01:30', table: '02:00' },
+  },
+  'tape': {
+    'tuesday':  { guestlist: '01:30', table: '02:00' },
+    'friday':   { guestlist: '01:30', table: '02:00' },
+    'saturday': { guestlist: '01:30', table: '02:00' },
+    'sunday':   { guestlist: '01:30', table: '02:00' },
+  },
+};
+
+/** @param {string} t - 'HH:MM' */
+function _toMins(t) {
+  const [h, m] = t.split(':').map(Number);
+  return h * 60 + m;
+}
+
+/**
+ * Determines the effective "nightclub night" given the current time.
+ * Between midnight and ~7 AM the previous calendar night is still "active"
+ * until the last booking cutoff across all venues has passed.
+ *
+ * @returns {{ effectiveDay: string, calendarDay: string, isLateNight: boolean, now: Date }}
+ */
+function getEffectiveNightclubDay() {
+  const now = new Date();
+  const hour = now.getHours();
+  const DAY = ['sunday', 'monday', 'tuesday', 'wednesday', 'thursday', 'friday', 'saturday'];
+  const calendarDay = DAY[now.getDay()];
+
+  if (hour < 7) {
+    const prevDay = DAY[(now.getDay() - 1 + 7) % 7];
+    const nowMins = hour * 60 + now.getMinutes();
+
+    // Find the latest cutoff across all venues for the previous night
+    let latestMins = 0;
+    for (const cutoffs of Object.values(VENUE_CUTOFFS)) {
+      const c = cutoffs[prevDay];
+      if (!c) continue;
+      if (c.table)     latestMins = Math.max(latestMins, _toMins(c.table));
+      if (c.guestlist) latestMins = Math.max(latestMins, _toMins(c.guestlist));
+    }
+
+    if (latestMins > 0 && nowMins < latestMins) {
+      return { effectiveDay: prevDay, calendarDay, isLateNight: true, now };
+    }
+  }
+
+  return { effectiveDay: calendarDay, calendarDay, isLateNight: false, now };
+}
+
+/**
+ * Returns live booking status (guestlist / table open or closed) for a venue on a nightclub night.
+ * @param {string} venue
+ * @param {string} effectiveDay
+ * @param {Date} now
+ * @returns {{ guestlistOpen: boolean|null, tableOpen: boolean|null, guestlistCutoff: string|null, tableCutoff: string|null }|null}
+ *   null = venue not open on this night
+ *   guestlistOpen/tableOpen null = advance booking only (no last-minute entry)
+ */
+function getVenueBookingStatus(venue, effectiveDay, now) {
+  const cutoffs = VENUE_CUTOFFS[venue]?.[effectiveDay];
+  if (!cutoffs) return null;
+
+  const nowMins = now.getHours() * 60 + now.getMinutes();
+  const isLateNight = now.getHours() < 7;
+
+  const resolve = (t) => {
+    if (t === null) return null;                         // advance booking only
+    if (!isLateNight) return true;                       // daytime — always open
+    return nowMins < _toMins(t);                         // late night — check cutoff
+  };
+
+  return {
+    guestlistOpen:    resolve(cutoffs.guestlist),
+    tableOpen:        resolve(cutoffs.table),
+    guestlistCutoff:  cutoffs.guestlist,
+    tableCutoff:      cutoffs.table,
+  };
+}
+
 // ─── HANDOFF TRIGGER CHECK ───────────────────────────────────────────────────
 
 const OTHER_VENUES = ['tabu', 'cirque le soir', 'maddox', 'selene', 'dear darling', 'tape', 'coco'];
@@ -312,7 +434,10 @@ module.exports = {
   getNightLabel,
   OTHER_VENUES,
   VENUE_SCHEDULE,
+  VENUE_CUTOFFS,
   REIGN_OPEN_DAYS,
   VENUE_PRIORITY,
   isReignOpenOn,
+  getEffectiveNightclubDay,
+  getVenueBookingStatus,
 };

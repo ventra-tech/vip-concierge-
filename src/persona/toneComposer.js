@@ -12,7 +12,10 @@ const {
   pushTableAfterHandoff,
   rejectionMessage,
 } = require('../templates/confirmations');
-const { getTableMinimum, REIGN, REIGN_OPEN_DAYS, VENUE_SCHEDULE, VENUE_PRIORITY, isReignOpenOn } = require('../policy/reign');
+const {
+  getTableMinimum, REIGN, REIGN_OPEN_DAYS, VENUE_SCHEDULE, VENUE_PRIORITY,
+  isReignOpenOn, getEffectiveNightclubDay, getVenueBookingStatus,
+} = require('../policy/reign');
 
 // ─── BANNED PHRASES ───────────────────────────────────────────────────────────
 
@@ -100,6 +103,67 @@ function buildNightContext(nightLabel) {
   return lines.join('\n');
 }
 
+// ─── TODAY / LIVE BOOKING STATUS CONTEXT ─────────────────────────────────────
+
+/**
+ * Builds a real-time context block about the current nightclub night and
+ * whether guestlist/table bookings are still open.
+ *
+ * Key concept: a "nightclub night" runs past midnight.
+ * e.g. Tuesday night at Reign is still "Tuesday" until 02:30 AM (last table cutoff).
+ * Only after all cutoffs pass does the calendar flip to Wednesday in club terms.
+ */
+function buildTodayContext() {
+  const { effectiveDay, calendarDay, isLateNight, now } = getEffectiveNightclubDay();
+
+  const CAP = s => s.charAt(0).toUpperCase() + s.slice(1);
+  const timeStr = `${String(now.getHours()).padStart(2, '0')}:${String(now.getMinutes()).padStart(2, '0')}`;
+  const effectiveLabel = CAP(effectiveDay);
+  const calendarLabel  = CAP(calendarDay);
+
+  const lines = [];
+
+  // ── Header ──
+  if (isLateNight) {
+    lines.push(`IT IS ${timeStr} ON ${calendarLabel.toUpperCase()} MORNING — still ${effectiveLabel.toUpperCase()} NIGHT in nightclub terms.`);
+  } else {
+    lines.push(`TODAY IS ${effectiveLabel.toUpperCase()}.`);
+  }
+
+  // ── Reign status ──
+  const reignOpen = REIGN_OPEN_DAYS.includes(effectiveDay);
+  if (reignOpen) {
+    const s = getVenueBookingStatus('reign', effectiveDay, now);
+    if (s) {
+      const gl = s.guestlistOpen === null  ? `advance booking only`
+               : s.guestlistOpen           ? `OPEN (closes ${s.guestlistCutoff})`
+                                           : `CLOSED (cutoff was ${s.guestlistCutoff})`;
+      const tb = s.tableOpen === null      ? `advance booking only`
+               : s.tableOpen              ? `OPEN (closes ${s.tableCutoff})`
+                                          : `CLOSED (cutoff was ${s.tableCutoff})`;
+      lines.push(`Reign IS OPEN ${effectiveLabel} night — Guestlist: ${gl}. Table: ${tb}.`);
+
+      if (s.guestlistOpen === false && s.tableOpen === true) {
+        lines.push(`Guestlist has closed for tonight — table only. Redirect any guestlist requests to table.`);
+      } else if (s.guestlistOpen === false && s.tableOpen === false) {
+        lines.push(`Both guestlist AND table are CLOSED for tonight. Do not take bookings for tonight — offer the next open night instead.`);
+      }
+    }
+  } else {
+    const pitchOrder = VENUE_PRIORITY
+      .filter(v => (VENUE_SCHEDULE[v] || []).includes(effectiveDay))
+      .map(CAP);
+    lines.push(`Reign is CLOSED on ${effectiveLabel}s.`);
+    if (pitchOrder.length > 0) {
+      lines.push(`Partner venues open tonight — pitch in order: ${pitchOrder.join(' → ')}.`);
+    } else {
+      lines.push(`No partner venues open tonight either. Suggest Reign on a different night (Tue/Thu/Fri/Sat).`);
+    }
+  }
+
+  return lines.join(' ');
+}
+
 // ─── SYSTEM PROMPT ────────────────────────────────────────────────────────────
 
 function buildSystemPrompt(state) {
@@ -121,20 +185,8 @@ function buildSystemPrompt(state) {
 
   const nightContext = buildNightContext(state.night_label);
 
-  // Always inject the current day so the LLM can correctly reason about "tonight", "tomorrow", etc.
-  const _DAYS = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'];
-  const _now = new Date();
-  const todayName = _DAYS[_now.getDay()];
-  const reignOpenToday = REIGN_OPEN_DAYS.includes(todayName.toLowerCase());
-  const todayPitchOrder = VENUE_PRIORITY
-    .filter(v => (VENUE_SCHEDULE[v] || []).includes(todayName.toLowerCase()))
-    .map(v => v.charAt(0).toUpperCase() + v.slice(1));
-  const todayContext = reignOpenToday
-    ? `TODAY IS ${todayName.toUpperCase()}. Reign is OPEN tonight. If someone says "tonight" or "today", this is what you're working with.`
-    : `TODAY IS ${todayName.toUpperCase()}. Reign is CLOSED tonight (not open on ${todayName}s). If someone says "tonight" or asks what's on tonight, DO NOT say Reign is open. ` +
-      (todayPitchOrder.length > 0
-        ? `Offer partner venues instead in this priority order: ${todayPitchOrder.join(' → ')}.`
-        : `No partner venues are open tonight — suggest Reign on a different night.`);
+  // Real-time context: current nightclub night + live booking cutoff status
+  const todayContext = buildTodayContext();
 
   return `You are Sanad — a London nightlife host who manages bookings for Reign, a premium Mayfair nightclub. You speak in first person always, texting guests on Instagram DMs.
 
