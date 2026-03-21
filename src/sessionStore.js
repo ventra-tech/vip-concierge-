@@ -1,32 +1,76 @@
 /**
  * sessionStore.js
- * In-memory session store keyed by ManyChat subscriber ID.
- * Each subscriber gets their own isolated conversation state.
+ * Redis-backed session store using Upstash.
+ * Sessions persist across Railway restarts and deployments.
  *
- * For production at scale, swap the Map for Redis or a DB.
- * The interface (get/set/delete/has) stays the same.
+ * TTL: 90 days of inactivity — returning customers are remembered long-term.
  */
 
+const { Redis } = require('@upstash/redis');
 const { createState } = require('./state');
 
-// In-memory store: subscriberId -> ConversationState
-const store = new Map();
+// ── Redis client ──────────────────────────────────────────────────────────────
+// Falls back to in-memory Map if Upstash env vars are not set (local dev)
+let redis = null;
 
-// Session TTL: 2 hours of inactivity clears the session
-const SESSION_TTL_MS = 2 * 60 * 60 * 1000;
-const ttlTimers = new Map();
+if (process.env.UPSTASH_REDIS_REST_URL && process.env.UPSTASH_REDIS_REST_TOKEN) {
+  redis = new Redis({
+    url: process.env.UPSTASH_REDIS_REST_URL,
+    token: process.env.UPSTASH_REDIS_REST_TOKEN,
+  });
+  console.log('[sessionStore] ✅ Using Upstash Redis for session persistence');
+} else {
+  console.warn('[sessionStore] ⚠️  No Upstash credentials found — falling back to in-memory store');
+}
+
+// Fallback in-memory store for local dev
+const _memoryStore = new Map();
+
+// Session TTL: 90 days in seconds
+const SESSION_TTL_SECONDS = 90 * 24 * 60 * 60;
+
+// Key prefix — keeps session keys namespaced
+const KEY = (subscriberId) => `session:${subscriberId}`;
+
+// ── Core helpers ──────────────────────────────────────────────────────────────
+
+async function _get(subscriberId) {
+  if (redis) {
+    const data = await redis.get(KEY(subscriberId));
+    return data || null;
+  }
+  return _memoryStore.get(subscriberId) || null;
+}
+
+async function _set(subscriberId, state) {
+  if (redis) {
+    await redis.set(KEY(subscriberId), state, { ex: SESSION_TTL_SECONDS });
+  } else {
+    _memoryStore.set(subscriberId, state);
+  }
+}
+
+async function _del(subscriberId) {
+  if (redis) {
+    await redis.del(KEY(subscriberId));
+  } else {
+    _memoryStore.delete(subscriberId);
+  }
+}
+
+// ── Public API ────────────────────────────────────────────────────────────────
 
 /**
  * Get or create a session for a subscriber.
  * @param {string} subscriberId
- * @returns {import('./state').ConversationState}
+ * @returns {Promise<import('./state').ConversationState>}
  */
-function getSession(subscriberId) {
-  if (!store.has(subscriberId)) {
-    store.set(subscriberId, createState(subscriberId));
-  }
-  _refreshTTL(subscriberId);
-  return store.get(subscriberId);
+async function getSession(subscriberId) {
+  const existing = await _get(subscriberId);
+  if (existing) return existing;
+  const fresh = createState(subscriberId);
+  await _set(subscriberId, fresh);
+  return fresh;
 }
 
 /**
@@ -34,40 +78,39 @@ function getSession(subscriberId) {
  * @param {string} subscriberId
  * @param {import('./state').ConversationState} state
  */
-function saveSession(subscriberId, state) {
-  store.set(subscriberId, state);
-  _refreshTTL(subscriberId);
+async function saveSession(subscriberId, state) {
+  await _set(subscriberId, state);
 }
 
 /**
- * Delete a session (e.g. after booking confirmed or conversation closed).
+ * Delete a session.
  * @param {string} subscriberId
  */
-function deleteSession(subscriberId) {
-  store.delete(subscriberId);
-  if (ttlTimers.has(subscriberId)) {
-    clearTimeout(ttlTimers.get(subscriberId));
-    ttlTimers.delete(subscriberId);
-  }
+async function deleteSession(subscriberId) {
+  await _del(subscriberId);
 }
 
 /**
  * Check if a session exists.
  * @param {string} subscriberId
- * @returns {boolean}
+ * @returns {Promise<boolean>}
  */
-function hasSession(subscriberId) {
-  return store.has(subscriberId);
+async function hasSession(subscriberId) {
+  if (redis) {
+    const data = await redis.get(KEY(subscriberId));
+    return data !== null;
+  }
+  return _memoryStore.has(subscriberId);
 }
 
 /**
- * Resume a paused session (after Sanad completes handoff).
+ * Resume a paused session after Sanad completes a handoff.
  * @param {string} subscriberId
  * @param {Partial<import('./state').ConversationState>} resumeData
- * @returns {import('./state').ConversationState}
+ * @returns {Promise<import('./state').ConversationState>}
  */
-function resumeSession(subscriberId, resumeData = {}) {
-  const state = getSession(subscriberId);
+async function resumeSession(subscriberId, resumeData = {}) {
+  const state = await getSession(subscriberId);
   const resumed = {
     ...state,
     paused: false,
@@ -75,31 +118,17 @@ function resumeSession(subscriberId, resumeData = {}) {
     handoff_reason: null,
     ...resumeData,
   };
-  saveSession(subscriberId, resumed);
+  await saveSession(subscriberId, resumed);
   return resumed;
 }
 
 /**
- * Get total active session count (useful for monitoring).
- * @returns {number}
+ * Get total active session count (Redis version returns 0 — use Upstash dashboard).
+ * @returns {Promise<number>}
  */
-function activeSessionCount() {
-  return store.size;
-}
-
-// Internal: reset TTL timer for a subscriber
-function _refreshTTL(subscriberId) {
-  if (ttlTimers.has(subscriberId)) {
-    clearTimeout(ttlTimers.get(subscriberId));
-  }
-  const timer = setTimeout(() => {
-    store.delete(subscriberId);
-    ttlTimers.delete(subscriberId);
-    console.log(`[sessionStore] Session expired for subscriber: ${subscriberId}`);
-  }, SESSION_TTL_MS);
-  // Allow Node to exit even if timers are pending
-  if (timer.unref) timer.unref();
-  ttlTimers.set(subscriberId, timer);
+async function activeSessionCount() {
+  if (!redis) return _memoryStore.size;
+  return 0; // Use Upstash dashboard for monitoring
 }
 
 module.exports = {

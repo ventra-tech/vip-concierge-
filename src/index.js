@@ -120,7 +120,7 @@ async function _processMessage(manyChatBody, parsed, messageText) {
 
   try {
     // ── 3. Load session ──
-    let state = getSession(subscriberId);
+    let state = await getSession(subscriberId);
 
     // ── 3b. Returning customer — reset booking fields if previous booking was completed ──
     // Keeps personal info (gender, name, IG handle) but starts a fresh booking flow.
@@ -213,7 +213,7 @@ async function _processMessage(manyChatBody, parsed, messageText) {
 
       const updatedHistory = _addToHistory(state, 'assistant', replyText);
       state = { ...state, conversation_history: updatedHistory };
-      saveSession(subscriberId, state);
+      await saveSession(subscriberId, state);
       logEvent('message_while_paused', state, { intent, isBookingChange });
       return {
         reply_text: replyText,
@@ -243,7 +243,7 @@ async function _processMessage(manyChatBody, parsed, messageText) {
       // Save bot reply to history
       const updatedHistory = _addToHistory(state, 'assistant', replyText);
       state = { ...state, conversation_history: updatedHistory };
-      saveSession(subscriberId, state);
+      await saveSession(subscriberId, state);
       logHandoff(state);
       return { reply_text: replyText, actions };
     }
@@ -274,7 +274,7 @@ async function _processMessage(manyChatBody, parsed, messageText) {
     }
 
     // ── 15. Save session ──
-    saveSession(subscriberId, state);
+    await saveSession(subscriberId, state);
 
     return {
       reply_text: replyText,
@@ -297,7 +297,7 @@ async function resumeFromHandoff(resumeBody) {
 
   // Smart approve — route to guestlist, table, or other venue based on current state
   if (decision === 'approve') {
-    const currentState = getSession(subscriberId);
+    const currentState = await getSession(subscriberId);
     if (currentState.handoff_reason?.startsWith('other_venue_insists:')) {
       decision = 'approve_other_venue';
     } else if (currentState.lead_type === 'table') {
@@ -307,12 +307,12 @@ async function resumeFromHandoff(resumeBody) {
     }
   }
 
-  const { resumedState, nextAction } = resumeAfterHandoff(subscriberId, decision, extra);
+  const { resumedState, nextAction } = await resumeAfterHandoff(subscriberId, decision, extra);
   const resumeActions = [];
 
   // Manual override — don't send any message, Sanad handles it
   if (decision === 'manual_override') {
-    saveSession(subscriberId, resumedState);
+    await saveSession(subscriberId, resumedState);
     logEvent('manual_override_activated', resumedState, { decision });
     resumeActions.push(buildSheetsLog('Manual Override', resumedState));
     return { reply_text: null, updated_state: resumedState, actions: resumeActions };
@@ -344,7 +344,7 @@ async function resumeFromHandoff(resumeBody) {
   const updatedHistory = _addToHistory(resumedState, 'assistant', replyText || '');
   const finalState = { ...resumedState, conversation_history: updatedHistory };
 
-  saveSession(subscriberId, finalState);
+  await saveSession(subscriberId, finalState);
   logEvent('handoff_resumed', finalState, { decision });
 
   // Log the outcome to Google Sheets

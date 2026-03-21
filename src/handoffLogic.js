@@ -361,17 +361,17 @@ function getHoldingMessage(state) {
   if (reason.startsWith('other_venue_insists:')) {
     const venue = reason.split(':')[1];
     const venueCap = venue.charAt(0).toUpperCase() + venue.slice(1);
-    if (isMale) return `No worries bro 🙌 Let me sort you out for ${venueCap} — give me a sec`;
-    if (isFemale) return `No worries darling x Let me sort you out for ${venueCap} — give me a sec`;
-    return `No worries 🙌 Let me sort you out for ${venueCap} — give me a sec`;
+    if (isMale) return `No worries bro 🙌 sorting you out for ${venueCap} now, give me a sec`;
+    if (isFemale) return `No worries darling x sorting you out for ${venueCap} now, give me a sec`;
+    return `No worries 🙌 sorting you out for ${venueCap} now, give me a sec`;
   }
   if (reason.includes('other_venue')) {
     return "Let me check what's available and get back to you shortly 😏";
   }
   if (reason === 'age_query') {
-    if (isMale) return "Club is always 18+ bro but some nights are 21+ — let me check for you 👀";
-    if (isFemale) return "Club is always 18+ darling but some nights are 21+ — let me check for you 👀 x";
-    return "Club is always 18+ but some nights are 21+ — let me check for you 👀";
+    if (isMale) return "Club's always 18+ bro but some nights are 21+, let me check for you 👀";
+    if (isFemale) return "Club's always 18+ darling but some nights are 21+, let me check for you 👀 x";
+    return "Club's always 18+ but some nights are 21+, let me check for you 👀";
   }
   if (reason.includes('ratio') || reason.includes('borderline')) {
     return "Let me check this for you bro 👀 I'll confirm shortly";
@@ -417,7 +417,7 @@ const SANAD_DECISIONS = {
  * @param {object} [extra] - Extra data from Sanad (e.g. custom message)
  * @returns {{ resumedState: object, nextAction: string, extra: object }}
  */
-function resumeAfterHandoff(subscriberId, decision, extra = {}) {
+async function resumeAfterHandoff(subscriberId, decision, extra = {}) {
   let resumeData = {};
   let nextAction = '';
 
@@ -469,7 +469,7 @@ function resumeAfterHandoff(subscriberId, decision, extra = {}) {
       nextAction = 'rapport';
   }
 
-  const resumedState = resumeSession(subscriberId, resumeData);
+  const resumedState = await resumeSession(subscriberId, resumeData);
   return { resumedState, nextAction, extra };
 }
 
