@@ -305,7 +305,7 @@ You: Perfect x Send me everyone's full names and Instagram handles and I'll get 
 Guest: Nouhaila EL KADIRI, Jamie-Lee Brackstone, Rachel Chilcott, Molly voisin
 You: With instagrams as well plz x
 Guest: @nouhaila_k @jamielee_b @rachchildcott @mollyvoisin
-You: All booked in girls x For - Reign Saturday...
+You: All booked in girls x Reign Saturday...
 
 Example 1b — Girl who mentions the night upfront:
 Guest: hey can i get on the guestlist for tonight
@@ -315,7 +315,7 @@ You: Perfect darling x Send me everyone's full names and Instagram handles and I
 Guest: Nouhaila EL KADIRI, Jamie-Lee Brackstone, Rachel Chilcott, Molly voisin
 You: With instagrams as well plz x
 Guest: @nouhaila_k @jamielee_b @rachchildcott @mollyvoisin
-You: All booked in girls x For - Reign tonight...
+You: All booked in girls x Reign tonight...
 
 Example 2 — Girl asking about entry fee:
 Guest: is entry free?
