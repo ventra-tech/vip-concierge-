@@ -1,14 +1,14 @@
 require('dotenv').config({ path: require('path').resolve(__dirname, '../.env') });
 
 const config = {
-  openai: {
-    apiKey: process.env.OPENAI_API_KEY,
-    model: process.env.OPENAI_MODEL || 'gpt-4o',
+  anthropic: {
+    apiKey: process.env.ANTHROPIC_API_KEY,
+    model: process.env.ANTHROPIC_MODEL || 'claude-haiku-4-5-20251001',
   },
-  manyChat: {
-    apiKey: process.env.MANYCHAT_API_KEY,
-    pageId: process.env.MANYCHAT_PAGE_ID,
-    apiBase: 'https://api.manychat.com',
+  instagram: {
+    pageAccessToken: process.env.INSTAGRAM_PAGE_ACCESS_TOKEN,
+    verifyToken:     process.env.INSTAGRAM_VERIFY_TOKEN,
+    graphApiVersion: process.env.IG_GRAPH_API_VERSION || 'v21.0',
   },
   server: {
     port: parseInt(process.env.PORT || '3000', 10),
@@ -18,9 +18,9 @@ const config = {
 
 function validateConfig() {
   const required = [
-    ['OPENAI_API_KEY', config.openai.apiKey],
-    ['MANYCHAT_API_KEY', config.manyChat.apiKey],
-    ['MANYCHAT_PAGE_ID', config.manyChat.pageId],
+    ['ANTHROPIC_API_KEY',              config.anthropic.apiKey],
+    ['INSTAGRAM_PAGE_ACCESS_TOKEN',    config.instagram.pageAccessToken],
+    ['INSTAGRAM_VERIFY_TOKEN',         config.instagram.verifyToken],
   ];
   const missing = required.filter(([, val]) => !val || val.startsWith('your_'));
   if (missing.length > 0) {

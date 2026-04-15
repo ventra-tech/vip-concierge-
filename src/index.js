@@ -3,7 +3,7 @@
  * Main entry point. Exports processMessage() — the single function n8n calls.
  */
 
-const { parseIncomingPayload } = require('./adapters/manyChat');
+const { parseIncomingPayload } = require('./adapters/instagram');
 const { getSession, saveSession } = require('./sessionStore');
 const { detectGender } = require('./genderDetector');
 const { classifyMessage } = require('./router');
@@ -78,7 +78,8 @@ function _debounce(subscriberId, text, processFn) {
       messageBuffers.delete(subscriberId);
       try {
         resolve(await processFn(combined));
-      } catch {
+      } catch (err) {
+        console.error('[processMessage] debounce error — subscriber:', subscriberId, '| error:', err?.message || err);
         resolve({ reply_text: null, actions: [] });
       }
     }, DEBOUNCE_MS);
@@ -176,7 +177,7 @@ async function _processMessage(manyChatBody, parsed, messageText) {
     };
 
     // ── 7. Classify message (needed for paused logic and main flow) ──
-    const routerOutput = await classifyMessage(manyChatBody, messageText);
+    const routerOutput = await classifyMessage(parsed.rawPayload, messageText);
 
     // ── 8. If session is paused (handoff active) ──
     // Smart pause: only block booking-changing messages — answer general questions normally.

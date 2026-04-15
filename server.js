@@ -11,7 +11,7 @@
 require('dotenv').config();
 const express = require('express');
 const { processMessage, resumeFromHandoff } = require('./src/index');
-const { sendTextMessage } = require('./src/adapters/manyChat');
+const { sendTextMessage, verifyWebhook } = require('./src/adapters/instagram');
 const config = require('./src/config');
 
 const app = express();
@@ -41,6 +41,91 @@ function _isDuplicate(subscriberId, messageText) {
 // Railway pings this to confirm the server is running
 app.get('/health', (req, res) => {
   res.json({ status: 'ok', timestamp: new Date().toISOString() });
+});
+
+// ─── DISPATCH ACTIONS TO N8N ──────────────────────────────────────────────────
+// Fire-and-forget: posts each action to the appropriate n8n webhook.
+// n8n handles sending emails (HANDOFF_ALERT, BOOKING_CONFIRMED) and logging
+// to Google Sheets (LOG_TO_SHEETS). Errors are logged but never block the user.
+async function _dispatchActions(actions) {
+  for (const action of (actions || [])) {
+    let url;
+    if (action.type === 'HANDOFF_ALERT')    url = process.env.N8N_HANDOFF_URL;
+    if (action.type === 'BOOKING_CONFIRMED') url = process.env.N8N_CONFIRMATION_URL;
+    if (action.type === 'LOG_TO_SHEETS')    url = process.env.N8N_SHEETS_URL;
+    if (!url) continue;
+
+    fetch(url, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(action),
+    }).catch(err => console.error(`[server] _dispatchActions failed (${action.type}):`, err.message));
+  }
+}
+
+// ─── INSTAGRAM WEBHOOK — VERIFICATION (GET) ───────────────────────────────────
+// Meta sends this GET when you save the webhook URL in the developer dashboard.
+// We must echo back hub.challenge to prove we own the endpoint.
+app.get('/webhook', (req, res) => {
+  const mode      = req.query['hub.mode'];
+  const token     = req.query['hub.verify_token'];
+  const challenge = req.query['hub.challenge'];
+
+  const result = verifyWebhook(mode, token, challenge);
+  if (result.valid) {
+    console.log('[server] /webhook verified ✅');
+    return res.status(200).send(result.challenge);
+  }
+
+  console.error('[server] /webhook verification failed ❌ — token mismatch');
+  res.sendStatus(403);
+});
+
+// ─── INSTAGRAM WEBHOOK — INCOMING DMs (POST) ──────────────────────────────────
+// Instagram POSTs here every time someone DMs the connected account.
+// We must respond 200 immediately — processing happens async after the ack.
+app.post('/webhook', async (req, res) => {
+  // Acknowledge immediately — Instagram will retry if we don't respond within 20s
+  res.sendStatus(200);
+
+  const body = req.body;
+  console.log('[server] /webhook POST received:', JSON.stringify(body));
+
+  if (body.object !== 'instagram') return;
+
+  for (const entry of (body.entry || [])) {
+    for (const event of (entry.messaging || [])) {
+      // Skip echo messages (bot's own outbound messages reflected back)
+      if (!event.message || event.message.is_echo) continue;
+
+      const igsid       = event.sender.id;
+      const messageText = event.message.text || '';
+
+      // Dedup — ignore if we've seen this exact message recently
+      if (_isDuplicate(igsid, messageText)) {
+        console.log('[server] /webhook duplicate ignored — igsid:', igsid);
+        continue;
+      }
+
+      // Process async so we never block the 200 response
+      (async () => {
+        try {
+          const result = await processMessage(event);
+
+          // Send reply directly to Instagram
+          if (result.reply_text) {
+            await sendTextMessage(igsid, result.reply_text);
+          }
+
+          // Fire emails / sheets logging to n8n
+          await _dispatchActions(result.actions || []);
+
+        } catch (err) {
+          console.error('[server] /webhook processing error:', err.message);
+        }
+      })();
+    }
+  }
 });
 
 // ─── MAIN MESSAGE ENDPOINT ────────────────────────────────────────────────────
@@ -192,17 +277,17 @@ app.get('/resume', async (req, res) => {
 });
 
 // ─── TEST SEND ENDPOINT ───────────────────────────────────────────────────────
-// Test if ManyChat outbound messaging works: /test-send?subscriberId=123
+// Test if Instagram outbound messaging works: /test-send?subscriberId=IGSID
 app.get('/test-send', async (req, res) => {
   try {
     const { subscriberId } = req.query;
     if (!subscriberId) {
-      return res.send(_renderPage('❌ Error', 'Add ?subscriberId=YOUR_ID to the URL', '#FF4444'));
+      return res.send(_renderPage('❌ Error', 'Add ?subscriberId=INSTAGRAM_SCOPED_ID to the URL', '#FF4444'));
     }
-    await sendTextMessage(subscriberId, 'Test message from Sanad bot ✅ — ManyChat API is working!');
-    res.send(_renderPage('✅ Test Sent', `Message sent to subscriber <strong>${subscriberId}</strong>. Check Instagram to confirm it arrived.`, '#25D366'));
+    await sendTextMessage(subscriberId, 'Test message from Reign Concierge bot ✅ — Instagram API is working!');
+    res.send(_renderPage('✅ Test Sent', `Message sent to IGSID <strong>${subscriberId}</strong>. Check Instagram to confirm it arrived.`, '#25D366'));
   } catch (err) {
-    res.send(_renderPage('❌ Test Failed', `Error: <strong>${err.message}</strong><br><br>This means the ManyChat API call is failing. Check the API key has "Send Content" permission in ManyChat.`, '#FF4444'));
+    res.send(_renderPage('❌ Test Failed', `Error: <strong>${err.message}</strong><br><br>Check that INSTAGRAM_PAGE_ACCESS_TOKEN is set correctly in Railway env vars.`, '#FF4444'));
   }
 });
 
